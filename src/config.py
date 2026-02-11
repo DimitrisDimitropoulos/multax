@@ -29,6 +29,13 @@ class SimConfig:
     cp_fluid: float = 1005.0
     cp_particle: float = 4184.0
     k_particle: float = 0.6
+    
+    # Phase Change Properties
+    M_dispersed: float = 18.015e-3  # Molar mass of dispersed phase (e.g. Water)
+    M_continuous: float = 28.97e-3  # Molar mass of continuous phase (e.g. Air)
+    latent_heat: float = 2.26e6     # Latent heat of vaporization (L_vap)
+    P_atm: float = 101325.0         # Atmospheric pressure
+    D_ref: float = 2.6e-5           # Reference mass diffusivity (D_AB)
 
     # Scenario Specifics, like cylinder radius for flow around cylinder, wall temperature, etc.
     R_cylinder: float = 1.0

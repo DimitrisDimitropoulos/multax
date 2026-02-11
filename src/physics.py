@@ -114,7 +114,7 @@ def calculate_rates(
 
     # Phase Change
     # Schmidt Number
-    D_AB = 2.6e-5
+    D_AB = config.D_ref
     sc = config.mu_fluid / (config.rho_fluid * D_AB)
     # Sherwood Number (analogous to Nusselt for mass transfer)
     sh = 2.0 + 0.6 * jnp.sqrt(reynolds) * jnp.cbrt(sc)
@@ -127,24 +127,19 @@ def calculate_rates(
     T_cel = T_safe - 273.15
     p_sat = 610.78 * jnp.exp((17.27 * T_cel) / (T_cel + 237.3))
 
-    M_WATER = 18.015e-3
-    M_AIR = 28.97e-3
-    P_ATM = 101325.0
-    L_VAP = 2.26e6
-
     # Mass Fraction
-    omega_surf = (M_WATER / M_AIR) * (p_sat / P_ATM)
+    omega_surf = (config.M_dispersed / config.M_continuous) * (p_sat / config.P_atm)
 
     T_room_cel = config.T_room_ref - 273.15
     p_sat_room = 610.78 * jnp.exp((17.27 * T_room_cel) / (T_room_cel + 237.3))
-    omega_inf = config.RH_room * (M_WATER / M_AIR) * (p_sat_room / P_ATM)
+    omega_inf = config.RH_room * (config.M_dispersed / config.M_continuous) * (p_sat_room / config.P_atm)
 
     # dm/tt = Sh * pi * d * rho_fluid * D_AB * (omega_inf - omega_surf)
     dm_dt_calc = (
         sh * jnp.pi * current_d * config.rho_fluid * D_AB * (omega_inf - omega_surf)
     )
 
-    q_total = q_conv + dm_dt_calc * L_VAP
+    q_total = q_conv + dm_dt_calc * config.latent_heat
     dT_dt_calc = q_total / (state.mass * config.cp_particle)
 
     is_too_small = state.mass < (config.m_particle_init * config.evap_cutoff_ratio**3)
