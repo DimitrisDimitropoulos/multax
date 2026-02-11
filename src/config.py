@@ -6,9 +6,36 @@ import jax
 @dataclass(frozen=True)
 @jax.tree_util.register_pytree_node_class
 class SimConfig:
-    """
-    Configuration for the simulation parameters.
-    Includes physical properties and scenario-specific parameters.
+    """Configuration for the simulation parameters.
+
+    Includes physical properties, flow parameters, and scenario-specific settings.
+
+    Attributes:
+        d_particle (float): Particle diameter. Units: [m].
+        rho_particle (float): Particle density. Units: [kg/m^3].
+        rho_fluid (float): Fluid density. Units: [kg/m^3].
+        mu_fluid (float): Fluid dynamic viscosity. Units: [Pa*s] or [kg/(m*s)].
+        U_0 (float): Characteristic flow velocity. Units: [m/s].
+        alpha (float): Characteristic length scale of the flow. Units: [m].
+        g (float): Gravitational acceleration. Units: [m/s^2].
+        k_fluid (float): Fluid thermal conductivity. Units: [W/(m*K)].
+        cp_fluid (float): Fluid specific heat capacity. Units: [J/(kg*K)].
+        cp_particle (float): Particle specific heat capacity. Units: [J/(kg*K)].
+        k_particle (float): Particle thermal conductivity. Units: [W/(m*K)].
+        M_dispersed (float): Molar mass of dispersed phase (e.g., Water). Units: [kg/mol].
+        M_continuous (float): Molar mass of continuous phase (e.g., Air). Units: [kg/mol].
+        latent_heat (float): Latent heat of vaporization. Units: [J/kg].
+        P_atm (float): Atmospheric pressure. Units: [Pa].
+        D_ref (float): Reference mass diffusivity. Units: [m^2/s].
+        R_cylinder (float): Cylinder radius (if applicable). Units: [m].
+        wall_x (float): X-coordinate of the vertical wall (if applicable). Units: [m].
+        T_wall (float): Temperature of the heated wall. Units: [K].
+        T_gradient_slope (float): Temperature gradient slope away from wall. Units: [K/m].
+        RH_room (float): Relative humidity of the far field (0.0 to 1.0).
+        T_room_ref (float): Reference temperature of the far field. Units: [K].
+        evap_cutoff_ratio (float): Ratio of initial diameter below which particle is removed.
+        enable_turbulence (bool): Whether to enable stochastic turbulence model.
+        turbulence_intensity (float): Intensity of turbulence (fraction of mean velocity).
     """
 
     # Particle Properties
@@ -29,13 +56,13 @@ class SimConfig:
     cp_fluid: float = 1005.0
     cp_particle: float = 4184.0
     k_particle: float = 0.6
-    
+
     # Phase Change Properties
     M_dispersed: float = 18.015e-3  # Molar mass of dispersed phase (e.g. Water)
     M_continuous: float = 28.97e-3  # Molar mass of continuous phase (e.g. Air)
-    latent_heat: float = 2.26e6     # Latent heat of vaporization (L_vap)
-    P_atm: float = 101325.0         # Atmospheric pressure
-    D_ref: float = 2.6e-5           # Reference mass diffusivity (D_AB)
+    latent_heat: float = 2.26e6  # Latent heat of vaporization for water (L_vap)
+    P_atm: float = 101325.0  # Atmospheric pressure
+    D_ref: float = 2.6e-5  # Reference mass diffusivity (D_AB)
 
     # Scenario Specifics, like cylinder radius for flow around cylinder, wall temperature, etc.
     R_cylinder: float = 1.0
@@ -64,25 +91,35 @@ class SimConfig:
 
     @property
     def r_particle(self) -> float:
+        """Particle radius. Units: [m]."""
         return self.d_particle / 2.0
 
     @property
     def m_particle_init(self) -> float:
+        """Initial particle mass. Units: [kg]."""
         return (3.14159 * self.d_particle**3 / 6) * self.rho_particle
 
     @property
     def m_fluid_init(self) -> float:
+        """Mass of fluid displaced by initial particle volume. Units: [kg]."""
         return (3.14159 * self.d_particle**3 / 6) * self.rho_fluid
 
     def get_prandtl_number(self) -> float:
+        """Calculates the Prandtl number of the fluid.
+
+        Returns:
+            float: Prandtl number (dimensionless).
+        """
         return (self.cp_fluid * self.mu_fluid) / self.k_fluid
 
     def get_stokes_number(self) -> float:
-        """
-        Calculates the Stokes number (Stk).
-        Stk = tau_p / tau_f
-        tau_p = (rho_p * d^2) / (18 * mu)
-        tau_f = L / U_0
+        r"""Calculates the Stokes number (Stk).
+
+        .. math::
+            Stk = \frac{\tau_p}{\tau_f} = \frac{\rho_p d_p^2 / 18 \mu_f}{L / U_0}
+
+        Returns:
+            float: Stokes number (dimensionless).
         """
         # Characteristic Length L or alpha
         # Use R_cylinder if it's relevant (non-zero), otherwise alpha
@@ -104,17 +141,24 @@ class SimConfig:
         g: float = -9.81,
         **kwargs,
     ) -> "SimConfig":
-        """
-        Reverse engineers simulation parameters from Maxey parameters W and A.
+        """Reverse engineers simulation parameters from Maxey parameters W and A.
 
         Mode 1 (Default): Fix U_0, solve for d_particle and alpha.
         Mode 2: Fix alpha, solve for U_0 and d_particle.
 
-        W: Settling velocity ratio = V_settling / U_0
-        A: Inertia parameter (Stokes number related)
+        Args:
+            W (float): Settling velocity ratio (V_settling / U_0).
+            A (float): Inertia parameter (related to Stokes number).
+            U_0 (float, optional): Characteristic velocity. Defaults to 10.0.
+            alpha (float, optional): Characteristic length scale. If provided, U_0 is recalculated.
+            rho_particle (float, optional): Particle density. Defaults to 2650.0.
+            rho_fluid (float, optional): Fluid density. Defaults to 1.225.
+            mu_fluid (float, optional): Fluid viscosity. Defaults to 1.81e-5.
+            g (float, optional): Gravity. Defaults to -9.81.
+            **kwargs: Additional SimConfig arguments.
 
-        Returns a SimConfig instance with calculated d_particle, alpha, and U_0
-        (if needed).
+        Returns:
+            SimConfig: Configured simulation instance.
         """
         import numpy as np
 
@@ -150,7 +194,13 @@ class SimConfig:
 
 @dataclass(frozen=True)
 class ForceConfig:
-    """Enables or disables specific forces."""
+    """Configuration for enabling/disabling specific forces.
+
+    Attributes:
+        gravity (bool): Enable gravitational force.
+        undisturbed_flow (bool): Enable undisturbed flow force (pressure + buoyancy).
+        drag (bool): Enable drag force.
+    """
 
     gravity: bool = True
     undisturbed_flow: bool = True

@@ -5,7 +5,18 @@ from typing import Tuple
 
 
 def make_gaussian_kernel(size: int, sigma: float) -> jnp.ndarray:
-    """Creates a 2D Gaussian kernel."""
+    r"""Creates a 2D Gaussian kernel.
+
+    .. math::
+        G(x, y) = \frac{1}{Z} \exp\left(-\frac{x^2 + y^2}{2\sigma^2}\right)
+
+    Args:
+        size (int): Size of the kernel side in pixels (NxN).
+        sigma (float): Standard deviation :math:`\sigma` of the Gaussian.
+
+    Returns:
+        jnp.ndarray: Normalized 2D Gaussian kernel array.
+    """
     # Ensure correct centering: range should be [-(N-1)/2, ..., +(N-1)/2]
     # jnp.arange(size) gives 0..size-1
     # Shift by (size-1)/2
@@ -16,18 +27,17 @@ def make_gaussian_kernel(size: int, sigma: float) -> jnp.ndarray:
 
 
 def turbo_colormap(x):
-    """
-    Approximate Turbo colormap logic in JAX.
-    x: value in [0, 1]
-    Returns: (..., 3) RGB
-    """
-    # Simple thermal gradient: Blue -> Cyan -> Green -> Yellow -> Red
-    # 0.0 -> Blue (0, 0, 1)
-    # 0.25 -> Cyan (0, 1, 1)
-    # 0.5 -> Green (0, 1, 0)
-    # 0.75 -> Yellow (1, 1, 0)
-    # 1.0 -> Red (1, 0, 0)
+    """Approximates the Turbo colormap using piecewise linear interpolation.
 
+    Maps a normalized scalar value [0, 1] to an RGB color.
+    Gradient: Blue -> Cyan -> Green -> Yellow -> Red.
+
+    Args:
+        x (jnp.ndarray): Normalized input values in range [0, 1].
+
+    Returns:
+        jnp.ndarray: RGB colors array (..., 3).
+    """
     x = jnp.clip(x, 0.0, 1.0) * 4.0
     # R channel
     # 0-1: 0, 1-2: 0, 2-3: (x-2), 3-4: 1
@@ -47,10 +57,10 @@ def turbo_colormap(x):
 
 @partial(jax.jit, static_argnums=(4, 5, 6, 7))
 def rasterize_frame_jax(
-    positions: jnp.ndarray,  # (N, 2)
-    temperatures: jnp.ndarray,  # (N,)
-    active_mask: jnp.ndarray,  # (N,)
-    masses: jnp.ndarray,  # (N,)
+    positions: jnp.ndarray,
+    temperatures: jnp.ndarray,
+    active_mask: jnp.ndarray,
+    masses: jnp.ndarray,
     resolution: Tuple[int, int],
     bounds: Tuple[float, float, float, float],
     reference_mass: float = 1.0,
@@ -58,9 +68,27 @@ def rasterize_frame_jax(
     t_min: float = 280.0,
     t_max: float = 400.0,
 ) -> jnp.ndarray:
-    """
-    Rasterizes particles into a glowing heatmap.
-    Returns: (H, W, 3) RGB array with float values 0..1
+    r"""Rasterizes particles into a glowing heatmap.
+
+    Uses a Gaussian kernel splatting technique to accumulate particle density and
+    temperature-weighted density onto a grid. The resulting fields are smoothed
+    and combined to produce a colored heatmap where brightness indicates density/size
+    and color indicates temperature.
+
+    Args:
+        positions (jnp.ndarray): Particle positions :math:`(N, 2)`. Units: [m].
+        temperatures (jnp.ndarray): Particle temperatures :math:`(N,)`. Units: [K].
+        active_mask (jnp.ndarray): Boolean mask for active particles :math:`(N,)`.
+        masses (jnp.ndarray): Particle masses :math:`(N,)`. Units: [kg].
+        resolution (Tuple[int, int]): Output image resolution (H, W).
+        bounds (Tuple[float, float, float, float]): Viewport bounds (x_min, x_max, y_min, y_max).
+        reference_mass (float, optional): Reference mass for scaling particle size. Units: [kg].
+        glow_sigma (float, optional): Standard deviation for Gaussian glow in pixels.
+        t_min (float, optional): Min temperature for colormap normalization. Units: [K].
+        t_max (float, optional): Max temperature for colormap normalization. Units: [K].
+
+    Returns:
+        jnp.ndarray: Rasterized frame as an RGB array (H, W, 3) with values 0..1.
     """
     H, W = resolution
     x_min, x_max, y_min, y_max = bounds

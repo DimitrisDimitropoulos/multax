@@ -18,7 +18,27 @@ def equations_of_motion(
     flow_func: FlowFunc,
     rng_key: jax.Array,
 ) -> Tuple[jnp.ndarray, float, float]:
+    r"""Computes the instantaneous derivatives for a single particle.
 
+    Calculates acceleration, temperature rate of change, and mass rate of change based on
+    active forces and thermodynamic models.
+
+    .. math::
+        \mathbf{a} = \frac{\sum \mathbf{F}}{m_{eff}}, \quad m_{eff} = m_p + \frac{1}{2}m_f
+
+    Args:
+        state (ParticleState): Current state of the particle.
+        config (SimConfig): Simulation configuration.
+        force_config (ForceConfig): Active forces configuration.
+        flow_func (FlowFunc): Flow field function.
+        rng_key (jax.Array): PRNG key for stochastic processes.
+
+    Returns:
+        Tuple[jnp.ndarray, float, float]: A tuple containing:
+            - Acceleration vector :math:`\mathbf{a}`. Units: [m/s^2].
+            - Temperature rate :math:`dT/dt`. Units: [K/s].
+            - Mass rate :math:`dm/dt`. Units: [kg/s].
+    """
     # Use mass if available, else standard
     # Put a cap on mass to prevent division with zero
     safe_mass = jnp.maximum(state.mass, 1e-16)
@@ -51,7 +71,23 @@ def run_simulation_euler(
     flow_func: FlowFunc,
     master_rng_key: jax.Array,
 ) -> ParticleState:
+    r"""Runs the full simulation using a Semi-Implicit Euler integrator.
 
+    Orchestrates the time-stepping loop, applying physics, thermodynamics, and boundary conditions.
+    Handles the lifecycle of particles (active vs. evaporated).
+
+    Args:
+        initial_state (ParticleState): Initial state of all particles.
+        t_eval (jnp.ndarray): Array of time points to evaluate. Units: [s].
+        config (SimConfig): Simulation configuration.
+        force_config (ForceConfig): Active forces configuration.
+        boundary_manager (BoundaryManager): Boundary condition logic.
+        flow_func (FlowFunc): Flow field function.
+        master_rng_key (jax.Array): Master PRNG key.
+
+    Returns:
+        ParticleState: The full history of the simulation state (stacked along time axis).
+    """
     dt = t_eval[1] - t_eval[0]
 
     def step_fn(carry, t):

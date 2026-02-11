@@ -9,8 +9,16 @@ from typing import Tuple
 @jax.tree_util.register_pytree_node_class
 @dataclass(frozen=True)
 class BoundaryManager:
-    """
-    Manages boundary conditions for the simulation.
+    r"""Manages boundary conditions for the simulation.
+
+    Handles periodic boundaries and elastic collisions with obstacles (cylinder, wall).
+
+    Attributes:
+        x_bounds (Tuple[float, float]): Domain limits in X :math:`(x_{min}, x_{max})`. Units: [m].
+        y_bounds (Tuple[float, float]): Domain limits in Y :math:`(y_{min}, y_{max})`. Units: [m].
+        periodic (bool): Whether to apply periodic boundary conditions.
+        cylinder_collision (bool): Whether to check for collisions with a central cylinder.
+        wall_collision (bool): Whether to check for collisions with a vertical wall.
     """
 
     x_bounds: Tuple[float, float]
@@ -27,6 +35,21 @@ class BoundaryManager:
         return cls(**aux_data)
 
     def apply(self, state: ParticleState, config: SimConfig) -> ParticleState:
+        r"""Applies boundary conditions to the particle state.
+
+        Modifies positions and velocities based on active boundary rules.
+        Calculates dynamic particle radius :math:`r_p` from mass for collision detection.
+
+        .. math::
+            r_p = \frac{1}{2} \sqrt[3]{\frac{6m}{\pi \rho_p}}
+
+        Args:
+            state (ParticleState): Current particle state.
+            config (SimConfig): Simulation configuration.
+
+        Returns:
+            ParticleState: Updated particle state with boundaries applied.
+        """
         pos = state.position
         vel = state.velocity
 

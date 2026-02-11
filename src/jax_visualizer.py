@@ -24,6 +24,14 @@ class JAXVisualizer:
         time_array: np.ndarray,
         flow_func: Callable,
     ):
+        """Initializes the JAX visualizer.
+
+        Args:
+            config (SimConfig): Simulation configuration.
+            history (ParticleState): Full history of particle states.
+            time_array (np.ndarray): Array of time points corresponding to history.
+            flow_func (Callable): Function defining the flow field for streamlines.
+        """
         self.config = config
         self.pos_history = jax.device_put(history.position)
         self.temp_history = jax.device_put(history.temperature)
@@ -40,9 +48,15 @@ class JAXVisualizer:
     def _generate_background(
         self, width: int, height: int, bounds: Tuple[float, float, float, float]
     ) -> jnp.ndarray:
-        """
-        Generates a static background image with streamlines.
-        Returns JAX array (H, W, 3) with values 0..1
+        """Generates a static background image with streamlines and temperature field.
+
+        Args:
+            width (int): Width of the background image in pixels.
+            height (int): Height of the background image in pixels.
+            bounds (Tuple[float, float, float, float]): Plot bounds (x_min, x_max, y_min, y_max).
+
+        Returns:
+            jnp.ndarray: Background image as an RGB array (H, W, 3) with float values 0..1.
         """
         x_min, x_max, y_min, y_max = bounds
         # Setup Figure
@@ -145,6 +159,19 @@ class JAXVisualizer:
         fps: int = 30,
         slow_mo_factor: float = 1.0,
     ):
+        """Generates and saves a video of the simulation using FFMPEG.
+
+        Renders frames using the JAX rasterizer and pipes them to FFMPEG.
+
+        Args:
+            output_path (str): Path to save the output video (e.g., 'output.mp4').
+            bounds (Tuple[float, float, float, float]): Viewport bounds (x_min, x_max, y_min, y_max).
+            width (int, optional): Video width in pixels. Defaults to 1280.
+            height (int, optional): Video height in pixels. Defaults to 720.
+            fps (int, optional): Frames per second. Defaults to 30.
+            slow_mo_factor (float, optional): Factor to slow down the video time relative to simulation time.
+                                              >1.0 is slower, <1.0 is faster. Defaults to 1.0.
+        """
         print(f"JAX Devices: {jax.devices()}")
         start_time = time.time()
 

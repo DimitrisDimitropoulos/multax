@@ -6,7 +6,19 @@ FlowFunc = Callable[[jnp.ndarray, SimConfig], jnp.ndarray]
 
 
 def flow_cellular(position: jnp.ndarray, config: SimConfig) -> jnp.ndarray:
-    """Cellular flow field: u = U0 cos(x/a)cos(y/a), v = U0 sin(x/a)sin(y/a)"""
+    r"""Computes velocity for a cellular flow field.
+
+    .. math::
+        u_x = U_0 \cos(x/\alpha) \cos(y/\alpha) \\
+        u_y = U_0 \sin(x/\alpha) \sin(y/\alpha)
+
+    Args:
+        position (jnp.ndarray): Position vector :math:`(x, y)`. Units: [m].
+        config (SimConfig): Simulation configuration.
+
+    Returns:
+        jnp.ndarray: Velocity vector :math:`(u_x, u_y)`. Units: [m/s].
+    """
     x, y = position
     ux = config.U_0 * jnp.cos(x / config.alpha) * jnp.cos(y / config.alpha)
     uy = config.U_0 * jnp.sin(x / config.alpha) * jnp.sin(y / config.alpha)
@@ -14,7 +26,17 @@ def flow_cellular(position: jnp.ndarray, config: SimConfig) -> jnp.ndarray:
 
 
 def flow_cylinder_potential(position: jnp.ndarray, config: SimConfig) -> jnp.ndarray:
-    """Potential flow around a cylinder centered at (0,0)."""
+    r"""Computes velocity for potential flow around a cylinder.
+
+    Calculates the flow around a cylinder of radius :math:`R` centered at origin.
+
+    Args:
+        position (jnp.ndarray): Position vector :math:`(x, y)`. Units: [m].
+        config (SimConfig): Simulation configuration.
+
+    Returns:
+        jnp.ndarray: Velocity vector :math:`(u_x, u_y)`. Units: [m/s].
+    """
     x, y = position
     r2 = x**2 + y**2 + 1e-9
     r = jnp.sqrt(r2)
@@ -28,7 +50,21 @@ def flow_cylinder_potential(position: jnp.ndarray, config: SimConfig) -> jnp.nda
 
 
 def flow_wall_stagnation(position: jnp.ndarray, config: SimConfig) -> jnp.ndarray:
-    """Stagnation flow impinging on a wall at x = wall_x."""
+    r"""Computes velocity for stagnation flow impinging on a wall.
+
+    .. math::
+        u_x = A (x_{wall} - x) \\
+        u_y = A y
+
+    Where :math:`A = U_0 / \alpha` is the strain rate.
+
+    Args:
+        position (jnp.ndarray): Position vector :math:`(x, y)`. Units: [m].
+        config (SimConfig): Simulation configuration.
+
+    Returns:
+        jnp.ndarray: Velocity vector :math:`(u_x, u_y)`. Units: [m/s].
+    """
     x, y = position
     # A = U0 / alpha (Strain rate)
     A = config.U_0 / config.alpha

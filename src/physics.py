@@ -10,7 +10,20 @@ from typing import Tuple
 def material_derivative(
     position: jnp.ndarray, config: SimConfig, flow_func: FlowFunc
 ) -> jnp.ndarray:
-    """Computes (u . grad) u"""
+    r"""Computes the material derivative of the flow velocity at a given position.
+
+    Calculates :math:`\frac{D\mathbf{u}}{Dt} = (\mathbf{u} \cdot \nabla) \mathbf{u}`.
+    Note that the time-dependent term :math:`\frac{\partial \mathbf{u}}{\partial t}` is
+    assumed to be zero (steady flow).
+
+    Args:
+        position (jnp.ndarray): Position vector :math:`\mathbf{x}`. Units: [m].
+        config (SimConfig): Simulation configuration.
+        flow_func (FlowFunc): Function returning flow velocity field.
+
+    Returns:
+        jnp.ndarray: Acceleration vector. Units: [m/s^2].
+    """
     velocity_func = lambda p: flow_func(p, config)
     jacobian_matrix = jax.jacobian(velocity_func)(position)
     velocity_vector = velocity_func(position)
@@ -20,6 +33,24 @@ def material_derivative(
 def get_turbulent_velocity(
     mean_vel: jnp.ndarray, key: jax.Array, config: SimConfig
 ) -> jnp.ndarray:
+    r"""Calculates the effective velocity including a stochastic turbulent component.
+
+    Adds a fluctuating component :math:`\mathbf{u}'` to the mean velocity :math:`\mathbf{u}`.
+    The fluctuation is modeled as Gaussian noise with standard deviation :math:`\sigma` derived
+    from the turbulent kinetic energy :math:`k`.
+
+    .. math::
+        \mathbf{u}_{eff} = \mathbf{u} + \mathbf{u}' \\
+        \sigma = \sqrt{\frac{2}{3} k}, \quad k \approx I \cdot |\mathbf{u}|
+
+    Args:
+        mean_vel (jnp.ndarray): Mean flow velocity vector. Units: [m/s].
+        key (jax.Array): PRNG key for stochastic generation.
+        config (SimConfig): Simulation configuration.
+
+    Returns:
+        jnp.ndarray: Effective velocity vector. Units: [m/s].
+    """
     if not config.enable_turbulence:
         return mean_vel
     u_mag = jnp.linalg.norm(mean_vel)
@@ -30,10 +61,19 @@ def get_turbulent_velocity(
 
 
 def get_fluid_temperature(position: jnp.ndarray, config: SimConfig) -> float:
-    """
-    Calculates fluid temperature, for the matrix fluid, based on proximity to a
-    heated wall.
-    T(x) = T_wall - gradient * dist
+    r"""Calculates the fluid temperature at a specific position.
+
+    Assumes a linear temperature gradient from a heated wall.
+
+    .. math::
+        T_f(\mathbf{x}) = T_{wall} - \nabla T \cdot \max(0, x_{wall} - x)
+
+    Args:
+        position (jnp.ndarray): Particle position vector. Units: [m].
+        config (SimConfig): Simulation configuration containing wall parameters.
+
+    Returns:
+        float: Fluid temperature. Units: [K].
     """
     dist = config.wall_x - position[0]
     dist = jnp.maximum(dist, 0.0)
@@ -41,15 +81,37 @@ def get_fluid_temperature(position: jnp.ndarray, config: SimConfig) -> float:
 
 
 def gravity_force(config: SimConfig, current_mass: float) -> jnp.ndarray:
+    r"""Calculates the gravitational force acting on the particle.
+
+    .. math::
+        \mathbf{F}_g = m_p \mathbf{g}
+
+    Args:
+        config (SimConfig): Simulation configuration.
+        current_mass (float): Current mass of the particle. Units: [kg].
+
+    Returns:
+        jnp.ndarray: Gravitational force vector. Units: [N].
+    """
     return jnp.array([0.0, current_mass * config.g])
 
 
 def undisturbed_flow_force(
     state: ParticleState, config: SimConfig, flow_func: FlowFunc, current_d: float
 ) -> jnp.ndarray:
-    """
-    F_undisturbed = m_fluid * Du/Dt
-    Also includes buoyancy (Archimedes): - m_fluid * g
+    r"""Calculates the force due to the undisturbed flow (pressure gradient + buoyancy).
+
+    .. math::
+        \mathbf{F}_{undisturbed} = m_f \frac{D\mathbf{u}}{Dt} - m_f \mathbf{g}
+
+    Args:
+        state (ParticleState): Current state of the particle.
+        config (SimConfig): Simulation configuration.
+        flow_func (FlowFunc): Function defining the flow field.
+        current_d (float): Current particle diameter. Units: [m].
+
+    Returns:
+        jnp.ndarray: Undisturbed flow force vector. Units: [N].
     """
     m_fluid_curr = (jnp.pi * current_d**3 / 6) * config.rho_fluid
     fluid_accel = material_derivative(state.position, config, flow_func)
@@ -60,7 +122,20 @@ def undisturbed_flow_force(
 def drag_force(
     state: ParticleState, u_effective: jnp.ndarray, config: SimConfig, current_d: float
 ) -> jnp.ndarray:
-    """Stokes Drag: F = 3 * pi * mu * d * (u_fluid - v_particle)"""
+    r"""Calculates the Stokes drag force acting on the particle.
+
+    .. math::
+        \mathbf{F}_{drag} = 3 \pi \mu d_p (\mathbf{u}_{eff} - \mathbf{v}_p)
+
+    Args:
+        state (ParticleState): Current state of the particle.
+        u_effective (jnp.ndarray): Effective fluid velocity (mean + turbulence). Units: [m/s].
+        config (SimConfig): Simulation configuration.
+        current_d (float): Current particle diameter. Units: [m].
+
+    Returns:
+        jnp.ndarray: Drag force vector. Units: [N].
+    """
     drag_coeff = 3 * jnp.pi * config.mu_fluid * current_d
     rel_vel = state.velocity - u_effective
     # Force acts opposite to relative velocity (v_part - u_fluid)
@@ -78,6 +153,22 @@ def total_force(
     current_d: float,
     current_mass: float,
 ) -> jnp.ndarray:
+    r"""Calculates the total force acting on the particle.
+
+    Sums the enabled forces (gravity, undisturbed flow, drag).
+
+    Args:
+        state (ParticleState): Current state of the particle.
+        config (SimConfig): Simulation configuration.
+        force_config (ForceConfig): Configuration enabling/disabling specific forces.
+        flow_func (FlowFunc): Function defining the flow field.
+        rng_key (jax.Array): PRNG key for turbulence.
+        current_d (float): Current particle diameter. Units: [m].
+        current_mass (float): Current particle mass. Units: [kg].
+
+    Returns:
+        jnp.ndarray: Total force vector. Units: [N].
+    """
     u_mean = flow_func(state.position, config)
     u_eff = get_turbulent_velocity(u_mean, rng_key, config)
     tf = jnp.zeros(2)
@@ -93,8 +184,24 @@ def total_force(
 def calculate_rates(
     state: ParticleState, u_effective: jnp.ndarray, config: SimConfig, current_d: float
 ) -> Tuple[float, float]:
-    """
-    Calculates dm/dt (evaporation) and dT/dt (heat transfer).
+    r"""Calculates the rate of change of mass (evaporation) and temperature (heat transfer).
+
+    Uses the Ranz-Marshall correlation for the Nusselt and Sherwood numbers.
+
+    .. math::
+        \frac{dm}{dt} = Sh \pi d_p \rho_f D_{AB} (\omega_{\infty} - \omega_{surf}) \\
+        \frac{dT}{dt} = \frac{\dot{Q}_{conv} + \dot{m} L_{vap}}{m c_p}
+
+    Args:
+        state (ParticleState): Current state of the particle.
+        u_effective (jnp.ndarray): Effective fluid velocity. Units: [m/s].
+        config (SimConfig): Simulation configuration.
+        current_d (float): Current particle diameter. Units: [m].
+
+    Returns:
+        Tuple[float, float]: A tuple containing:
+            - dm_dt: Rate of mass change. Units: [kg/s].
+            - dT_dt: Rate of temperature change. Units: [K/s].
     """
     # Safety: If temperature is near 0, assume thermal/mass transfer is disabled
     # or uninitialized to avoid numerical instability
@@ -132,7 +239,11 @@ def calculate_rates(
 
     T_room_cel = config.T_room_ref - 273.15
     p_sat_room = 610.78 * jnp.exp((17.27 * T_room_cel) / (T_room_cel + 237.3))
-    omega_inf = config.RH_room * (config.M_dispersed / config.M_continuous) * (p_sat_room / config.P_atm)
+    omega_inf = (
+        config.RH_room
+        * (config.M_dispersed / config.M_continuous)
+        * (p_sat_room / config.P_atm)
+    )
 
     # dm/tt = Sh * pi * d * rho_fluid * D_AB * (omega_inf - omega_surf)
     dm_dt_calc = (
