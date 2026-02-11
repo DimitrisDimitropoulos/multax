@@ -13,6 +13,7 @@ from typing import Tuple, Callable, List
 from src.state import ParticleState
 from src.config import SimConfig
 from src.rasterizer import rasterize_frame_jax
+from src.physics import get_fluid_temperature
 
 
 class JAXVisualizer:
@@ -72,14 +73,17 @@ class JAXVisualizer:
         U = vel[:, 0].reshape(X.shape)
         V = vel[:, 1].reshape(Y.shape)
 
-        # Plot Temperature Field if it's a wall scenario
-        if "wall" in str(self.flow_func.__name__):
-            # Calculate Temperature on Grid
-            # T(x) = T_wall - gradient * (wall_x - x)
-            # We use the same logic as in physics.py
-            dist = self.config.wall_x - X
-            dist = np.maximum(dist, 0.0)
-            T_field = self.config.T_wall - self.config.T_gradient_slope * dist
+        # Plot Temperature Field if config indicates a thermal scenario
+        # Check if T_wall is significantly different from Room Temp, implying a gradient
+        # Later make the T_wall some char temperature to make more problem agnostic
+        if abs(self.config.T_wall - self.config.T_room_ref) > 1.0:
+            # Get the temperature of the carrrier with a
+            # based on the continuous function of the temperature
+            # grid_pos shape is (N_points, 2)
+            T_field_jax = jax.vmap(lambda p: get_fluid_temperature(p, self.config))(
+                jnp.array(grid_pos)
+            )
+            T_field = np.array(T_field_jax).reshape(X.shape)
 
             # Use hot or YlOrRd colormap
             # Alpha 0.3 so streamlines are visible
@@ -199,11 +203,16 @@ class JAXVisualizer:
 
         m_init = float(self.config.m_particle_init)
 
+        # Dynamic Temperature Bounds for Visualization
+        # Start at Room Temp, go up to Wall Temp (or slightly higher/lower buffer)
+        t_min = float(min(self.config.T_room_ref, self.config.T_wall)) - 5.0
+        t_max = float(max(self.config.T_room_ref, self.config.T_wall)) + 5.0
+
         # Pre-compile render function (vmap outside loop)
         render_batch_fn = jax.jit(
             jax.vmap(
                 lambda p, t, a, m: rasterize_frame_jax(
-                    p, t, a, m, (height, width), bounds, m_init
+                    p, t, a, m, (height, width), bounds, m_init, 0.8, t_min, t_max
                 )
             )
         )

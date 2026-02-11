@@ -45,7 +45,7 @@ def turbo_colormap(x):
     return jnp.stack([r, g, b], axis=-1)
 
 
-@partial(jax.jit, static_argnums=(4, 5, 6))
+@partial(jax.jit, static_argnums=(4, 5, 6, 7))
 def rasterize_frame_jax(
     positions: jnp.ndarray,  # (N, 2)
     temperatures: jnp.ndarray,  # (N,)
@@ -55,6 +55,8 @@ def rasterize_frame_jax(
     bounds: Tuple[float, float, float, float],
     reference_mass: float = 1.0,
     glow_sigma: float = 0.8,
+    t_min: float = 280.0,
+    t_max: float = 400.0,
 ) -> jnp.ndarray:
     """
     Rasterizes particles into a glowing heatmap.
@@ -107,10 +109,6 @@ def rasterize_frame_jax(
     avg_temp = temp_smooth / (density_smooth + 1e-6)
 
     # Normalize Temp
-    # This is a fixed approach, would it be better to normalize based on
-    # observed min/max in the frame? For now, let's use a fixed range for
-    # better color consistency across frames.
-    t_min, t_max = 280.0, 400.0
     t_norm = (avg_temp - t_min) / (t_max - t_min)
     rgb_color = turbo_colormap(t_norm)
 
