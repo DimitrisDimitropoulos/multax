@@ -1,0 +1,115 @@
+import jax
+import jax.numpy as jnp
+from jax import lax, random
+from functools import partial
+from typing import Tuple
+
+from src.state import ParticleState
+from src.config import SimConfig, ForceConfig
+from src.boundary import BoundaryManager
+from src.flow import FlowFunc
+from src.physics import total_force, calculate_rates
+
+
+def equations_of_motion(
+    state: ParticleState,
+    config: SimConfig,
+    force_config: ForceConfig,
+    flow_func: FlowFunc,
+    rng_key: jax.Array,
+) -> Tuple[jnp.ndarray, float, float]:
+
+    # Use mass if available, else standard
+    # Put a cap on mass to prevent division with zero
+    safe_mass = jnp.maximum(state.mass, 1e-16)
+    # If mass is essentially constant (default), this calculation is redundant but safe
+    # Used for phase change scenarios where mass can vary significantly
+    current_d = jnp.cbrt((6.0 * safe_mass) / (jnp.pi * config.rho_particle))
+    force, u_eff = total_force(
+        state, config, force_config, flow_func, rng_key, current_d, safe_mass
+    )
+
+    # Effective Inertial Mass (Particle + Added Mass)
+    # The mass that the fluid would have if there was no particles there, the displaced fluid mass
+    m_fluid_disp = (jnp.pi * current_d**3 / 6) * config.rho_fluid
+    inertial_mass = safe_mass + 0.5 * m_fluid_disp
+    accel = force / inertial_mass
+
+    # Thermo eqs
+    dm_dt, dT_dt = calculate_rates(state, u_eff, config, current_d)
+
+    return accel, dT_dt, dm_dt
+
+
+@partial(jax.jit, static_argnums=(3, 4, 5))
+def run_simulation_euler(
+    initial_state: ParticleState,
+    t_eval: jnp.ndarray,
+    config: SimConfig,
+    force_config: ForceConfig,
+    boundary_manager: BoundaryManager,
+    flow_func: FlowFunc,
+    master_rng_key: jax.Array,
+) -> ParticleState:
+
+    dt = t_eval[1] - t_eval[0]
+
+    def step_fn(carry, t):
+        """
+        Basically the core of the simulation loop, but vectorized over all
+        particles and JIT-compiled.
+
+        carry: (ParticleState, rng_key)
+        returns: (new_carry, ParticleState)
+        """
+        state, key = carry
+        step_key, next_key = random.split(key)
+        # Split key for N particles
+        particle_keys = random.split(step_key, state.position.shape[0])
+
+        # Calculate Derivatives (Vectorized over particles)
+        # vmap over (State, Keys) -> (Accel, dT, dm)
+        # We need to reshape/structure the vmap correctly.
+        # State is a Pytree of arrays (N, ...).
+
+        def single_particle_deriv(s, k):
+            return equations_of_motion(s, config, force_config, flow_func, k)
+
+        # vmap over state (0) and keys (0). config/force_config/flow_func are captured constants.
+        accel, dT_dt, dm_dt = jax.vmap(single_particle_deriv, in_axes=(0, 0))(
+            state, particle_keys
+        )
+
+        # Evaporation Cutoff, if the particle has lost 90% of its mass declare
+        # it gone
+        cutoff_mass = config.m_particle_init * (config.evap_cutoff_ratio**3)
+        # Particle is active if it was active AND mass > cutoff
+        # Active status/tag to prevent NaNs from particles that have evaporated away (mass ~ 0)
+        # Also makes the visualizarer logic cleaner
+        new_active = state.active & (state.mass > cutoff_mass)
+
+        # Zero out updates for inactive particles to prevent NaNs
+        accel = jnp.where(new_active[:, None], accel, 0.0)
+        dT_dt = jnp.where(new_active, dT_dt, 0.0)
+        dm_dt = jnp.where(new_active, dm_dt, 0.0)
+
+        # Semi-implicit Euler for better coupling with stochastic noise
+        # update velocity first, then position with new velocity
+        new_vel = state.velocity + accel * dt
+        new_pos = state.position + new_vel * dt
+        new_temp = state.temperature + dT_dt * dt
+        new_mass = state.mass + dm_dt * dt
+
+        # Freeze position/velocity for inactive particles (keep old state or just stop updating)
+        # We let them freeze in place to avoid them flying off with NaNs, if we make them zero or None
+        new_pos = jnp.where(new_active[:, None], new_pos, state.position)
+        new_vel = jnp.where(
+            new_active[:, None], new_vel, jnp.zeros_like(state.velocity)
+        )
+
+        temp_state = ParticleState(new_pos, new_vel, new_temp, new_mass, new_active)
+        final_state = boundary_manager.apply(temp_state, config)
+        return (final_state, next_key), final_state
+
+    _, history = lax.scan(step_fn, (initial_state, master_rng_key), t_eval)
+    return history
