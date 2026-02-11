@@ -35,20 +35,26 @@ def main():
     force_config = ForceConfig(gravity=True, undisturbed_flow=True, drag=True)
 
     # Domain & Boundaries
-    L = 2 * np.pi * config.alpha
+    L = 4 * np.pi * config.alpha
     bounds = BoundaryManager(x_bounds=(0.0, L), y_bounds=(0.0, L), periodic=True)
 
     # Initialization
-    n_particles = 100
-    gx = np.linspace(0.1, L - 0.1, 10)
-    gy = np.linspace(0.1, L - 0.1, 10)
+    n_particles = 10000
+    grid_side = int(np.sqrt(n_particles))
+    gx = np.linspace(0.1, L - 0.1, grid_side)
+    gy = np.linspace(0.1, L - 0.1, grid_side)
     mx, my = np.meshgrid(gx, gy)
     pos = jnp.array(np.stack([mx.ravel(), my.ravel()], axis=1))
+
+    # Recalculate actual n_particles (in case of rounding)
+    actual_n = pos.shape[0]
+    print(f"Initializing {actual_n} particles on a {grid_side}x{grid_side} grid...")
+
     vel = jax.vmap(lambda p: flow_cellular(p, config))(pos)
 
     # Initialize Mass
     m_p = config.m_particle_init
-    mass = jnp.full((n_particles,), m_p)
+    mass = jnp.full((actual_n,), m_p)
 
     initial_state = ParticleState(position=pos, velocity=vel, mass=mass)
 
