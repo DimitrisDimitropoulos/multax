@@ -8,7 +8,6 @@ from src.state import ParticleState
 from src.flow import flow_cellular
 from src.boundary import BoundaryManager
 from src.solver import run_simulation_euler
-from src.visualizer import Visualizer
 
 
 def main():
