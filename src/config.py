@@ -77,6 +77,10 @@ class SimConfig:
     enable_turbulence: bool = False
     turbulence_intensity: float = 0.1
 
+    # Collision parameters
+    enable_collisions: bool = False
+    collision_restitution: float = 0.9
+
     def tree_flatten(self):
         #  aux_data must be hashable
         # Convert dict to a sorted tuple of items
