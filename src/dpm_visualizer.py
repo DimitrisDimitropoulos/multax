@@ -6,6 +6,7 @@ from src.config import SimConfig
 from src.physics import get_fluid_temperature
 import matplotlib.colors as colors
 from matplotlib.collections import LineCollection
+import jax.numpy as jnp
 
 
 class DPMVisualizer:
@@ -22,7 +23,7 @@ class DPMVisualizer:
         Plots 2x2 Grid:
         1. Concentration [m^-3] + Streamlines
         2. Mean Temperature [K]
-        3. Mean Diameter [um]
+        3. Mean Diameter [m]
         4. Mean Evaporation Rate [g/s]
         """
         dx = (self.grid.x_max - self.grid.x_min) / self.grid.nx
@@ -32,7 +33,7 @@ class DPMVisualizer:
         res_time = np.array(self.grid.residence_time)
         concentration = res_time / cell_vol
         mean_temp = np.array(self.grid.get_mean_temperature())
-        mean_diam = np.array(self.grid.get_mean_diameter())  # m
+        mean_diam = np.array(self.grid.get_mean_diameter())  # meters
         # Grid stores kg/s. Convert to g/s.
         mean_evap = np.array(self.grid.get_mean_evap_rate()) * 1000.0
 
@@ -107,8 +108,8 @@ class DPMVisualizer:
         im3 = axes[1, 0].imshow(
             masked_diam.T, origin="lower", extent=extent, aspect="auto", cmap="inferno"
         )
-        axes[1, 0].set_title("Mean Particle Diameter [µm]")
-        plt.colorbar(im3, ax=axes[1, 0], label="Diameter [µm]")
+        axes[1, 0].set_title("Mean Particle Diameter [m]")
+        plt.colorbar(im3, ax=axes[1, 0], label="Diameter [m]")
 
         # Evaporation Rate
         im4 = axes[1, 1].imshow(
@@ -152,7 +153,7 @@ class DPMVisualizer:
         """
         Plots 4 subplots with Carrier Background (Flow & Temp)
         and Parcel Trajectories foreground colored by:
-        1. Velocity
+        1. Local Concentration [#/m^3]
         2. Temperature
         3. Diameter
         4. Evaporation Rate
@@ -189,14 +190,35 @@ class DPMVisualizer:
         mass = np.array(self.history.mass)  # (T, N)
         active = np.array(self.history.active)  # (T, N)
 
-        # Derived: Speed, Diameter, Evap Rate
-        speed = np.linalg.norm(vel, axis=-1)
-        diam = np.cbrt((6.0 * mass) / (np.pi * self.config.rho_particle))  # m
+        # Derived Fields
+        # Local Concentration
+        # We need to map particle positions to grid indices
+        dx = (self.grid.x_max - self.grid.x_min) / self.grid.nx
+        dy = (self.grid.y_max - self.grid.y_min) / self.grid.ny
+        cell_vol = dx * dy
+        res_time = np.array(self.grid.residence_time)
+        grid_conc = res_time / cell_vol
 
-        # Evap Rate (Backwards diff)
+        # Flatten pos to list of points (T*N, 2)
+        flat_pos = pos.reshape(-1, 2)
+        # Use grid helper to get indices
+        # Cast to JAX array for the helper
+        jax_pos = jnp.array(flat_pos)
+        ix_flat, iy_flat = self.grid.get_cell_indices(jax_pos)
+        # Cast back to numpy for indexing numpy array
+        ix_flat = np.array(ix_flat)
+        iy_flat = np.array(iy_flat)
+        # Sample concentration
+        conc_flat = grid_conc[ix_flat, iy_flat]
+        # Reshape back to (T, N)
+        parcel_conc = conc_flat.reshape(pos.shape[0], pos.shape[1])
+
+        # Diameter [m]
+        diam = np.cbrt((6.0 * mass) / (np.pi * self.config.rho_particle))  # meters
+        # C. Evap Rate
+        # Backwards difference
         dM = np.diff(mass, axis=0, prepend=mass[0:1])
-
-        # Determine DT from t_eval
+        # DT Logic
         if self.t_eval is not None and len(self.t_eval) > 1:
             dt = float(self.t_eval[1] - self.t_eval[0])
         else:
@@ -208,14 +230,17 @@ class DPMVisualizer:
         fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
         titles = [
-            "Parcel Velocity [m/s]",
+            "Local Concentration [#/m^3]",
             "Parcel Temperature [K]",
-            "Parcel Diameter [µm]",
+            "Parcel Diameter [m]",
             "Parcel Evap Rate [g/s]",
         ]
-        datas = [speed, temp, diam, evap_rate]
+        datas = [parcel_conc, temp, diam, evap_rate]
         cmaps = ["inferno", "inferno", "inferno", "inferno"]
 
+        # For Concentration, we might want log scale normalization, but
+        # LineCollection norm logic is linear by default.
+        # We can pass a LogNorm to LineCollection.
         for i, ax in enumerate(axes.flat):
             # Carrier Temp Contour as backgroundback
             im_bg = ax.contourf(X, Y, carrier_T, levels=20, cmap="Greys", alpha=0.5)
@@ -257,7 +282,18 @@ class DPMVisualizer:
             flat_segments = np.concatenate(all_segments, axis=0)
             flat_values = np.concatenate(all_values, axis=0)
 
-            norm = plt.Normalize(np.nanmin(flat_values), np.nanmax(flat_values))
+            # Determine Normalization
+            if i == 0:  # Concentration - Log Norm
+                vmin = (
+                    np.nanmin(flat_values[flat_values > 0])
+                    if np.any(flat_values > 0)
+                    else 1e-10
+                )
+                vmax = np.nanmax(flat_values) if np.any(flat_values > 0) else 1.0
+                norm = colors.LogNorm(vmin=vmin, vmax=vmax)
+            else:
+                norm = plt.Normalize(np.nanmin(flat_values), np.nanmax(flat_values))
+
             lc = LineCollection(
                 flat_segments, cmap=cmap_name, norm=norm, linewidth=1.0, alpha=0.8
             )
@@ -277,3 +313,4 @@ class DPMVisualizer:
         plt.savefig(filename, dpi=150)
         plt.close(fig)
         print(f"Saved trajectory plot to {filename}")
+
