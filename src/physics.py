@@ -54,7 +54,7 @@ def get_turbulent_velocity(
     if not config.enable_turbulence:
         return mean_vel
     u_mag = jnp.linalg.norm(mean_vel)
-    k_val = config.turbulence_intensity * u_mag
+    k_val = (3 / 2) * (config.turbulence_intensity * u_mag) ** (2)
     sigma = jnp.sqrt((2.0 / 3.0) * k_val)
     noise = random.normal(key, shape=mean_vel.shape) * sigma
     return mean_vel + noise
