@@ -32,7 +32,11 @@ The root directory contains several `run_*.py` scripts that demonstrate the solv
 
 - `run_cellular.py`: Particles trapped in cellular vortex structures.
 
-https://github.com/user-attachments/assets/bfc7b356-170b-45ff-8db2-9b9a8377d6e6
+
+https://github.com/user-attachments/assets/236a50c0-3bf2-4525-a11a-0bd5d8af1ac7
+
+
+
 
 - `run_cylinder.py`: Classic flow around a cylinder with particle trajectories.
 
@@ -45,7 +49,11 @@ https://github.com/user-attachments/assets/78975051-d741-4532-b010-74a31a251327
 - `run_wall_thermal.py`: Simulation of thermal boundary layers and their effect on particles.
 
 
-https://github.com/user-attachments/assets/04b0d118-4db9-4879-9c21-66a2cd32f7a7
+
+
+https://github.com/user-attachments/assets/12d82512-b39f-4200-8b61-903d276802b8
+
+
 
 
 
@@ -58,7 +66,11 @@ https://github.com/user-attachments/assets/04b0d118-4db9-4879-9c21-66a2cd32f7a7
 - `run_collisions.py`: Demonstrates the efficiency and accuracy of the collision engine.
 
 
-https://github.com/user-attachments/assets/d4c5ec66-a04a-408a-af96-45268fafc62d
+
+
+https://github.com/user-attachments/assets/284bee9f-30cd-4815-8059-0e6d27f701da
+
+
 
 
 These scripts serve as reference implementations for setting up your own simulations.
