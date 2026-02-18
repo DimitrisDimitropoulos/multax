@@ -117,20 +117,26 @@ class SimConfig:
         return (self.cp_fluid * self.mu_fluid) / self.k_fluid
 
     def get_stokes_number(self) -> float:
-        r"""Calculates the Stokes number (Stk).
+        r"""Calculates the generalized Stokes number (Stk).
 
-        .. math::
-            Stk = \frac{\tau_p}{\tau_f} = \frac{\rho_p d_p^2 / 18 \mu_f}{L / U_0}
+            Uses the effective density (\rho_p + 0.5 \rho_f) to account for 
+            added mass, ensuring validity for both heavy particles (aerosols) 
+            and light particles (bubbles).
 
-        Returns:
-            float: Stokes number (dimensionless).
-        """
-        # Characteristic Length L or alpha
-        # Use R_cylinder if it's relevant (non-zero), otherwise alpha
+            .. math::
+                \tau_{eff} = \frac{(\rho_p + 0.5\rho_f) d_p^2}{18 \mu_f} \\
+                Stk = \frac{\tau_{eff}}{L / U_0}
+
+            Returns:
+                float: Stokes number (dimensionless).
+            """
+        # Characteristic Length
         L = self.R_cylinder if self.R_cylinder > 0 else self.alpha
-        tau_p = (self.rho_particle * self.d_particle**2) / (18 * self.mu_fluid)
+        # Effective Density: Particle Mass + Added Mass (0.5 * Fluid Mass)
+        rho_eff = self.rho_particle + 0.5 * self.rho_fluid
+        tau_eff = (rho_eff * self.d_particle**2) / (18 * self.mu_fluid)
         tau_f = L / self.U_0
-        return tau_p / tau_f
+        return tau_eff / tau_f
 
     @classmethod
     def from_maxey(
@@ -167,22 +173,42 @@ class SimConfig:
         import numpy as np
 
         g_mag = abs(g)
+        # Effective Density Difference for Settling (Buoyancy)
+        delta_rho = abs(rho_particle - rho_fluid)
+
+        # Effective Density for Inertia (Particle Mass + Added Mass)
+        # m_eff = Vol * (rho_p + 0.5 * rho_f)
+        rho_eff = rho_particle + 0.5 * rho_fluid
 
         if alpha is not None:
-            # Mode 2: Fix Alpha, Solve U_0
-            # U_0 = sqrt( (A * g * alpha) / W )
-            U_0 = float(np.sqrt((A * g_mag * alpha) / W))
-            # Now solve d_particle
-            d_sq = (18 * mu_fluid * U_0 * W) / (g_mag * rho_particle)
+            # Mode 2: Fix Length Scale (alpha), Solve for U_0 and d_particle
+            # This is a coupled system, we solve it algebraically.
+            #  Stokes settling: W * U_0 = (g * delta_rho * d^2) / (18 * mu)
+            #  Inertia param:   A = (alpha / U_0) * (1 / tau)
+            #    where tau = (rho_eff * d^2) / (18 * mu)
+            # Combine to eliminate d^2 and solve for U_0:
+            # U_0^2 = (g * alpha * A * delta_rho) / (W * rho_eff)
+            U_0_sq = (g_mag * alpha * A * delta_rho) / (abs(W) * rho_eff)
+            U_0 = float(np.sqrt(U_0_sq))
+            # Now solve for d_particle using the Settling velocity equation
+            # d^2 = (18 * mu * W * U_0) / (g * delta_rho)
+            d_sq = (18 * mu_fluid * abs(W) * U_0) / (g_mag * delta_rho)
             d_particle = float(np.sqrt(d_sq))
 
         else:
-            # Mode 1: Fix U_0, Solve Alpha (Default)
-            # 1. Calculate d_particle from W
-            d_sq = (18 * mu_fluid * U_0 * W) / (g_mag * rho_particle)
+            # Mode 1: Fix U_0, Solve for d_particle and Length Scale (alpha)
+            # Calculate d_particle from W (Settling)
+            # W * U_0 = V_settle
+            # d^2 = (18 * mu * V_settle) / (g * delta_rho)
+            v_settle = abs(W) * U_0
+            d_sq = (18 * mu_fluid * v_settle) / (g_mag * delta_rho)
             d_particle = float(np.sqrt(d_sq))
-            # 2. Calculate alpha from A
-            alpha = float((rho_particle * d_particle**2 * U_0) / (18 * mu_fluid * A))
+            # Calculate Relaxation Time (tau) using Effective Mass
+            # tau = m_eff / (3 * pi * mu * d) = (rho_eff * d^2) / (18 * mu)
+            tau = (rho_eff * d_particle**2) / (18 * mu_fluid)
+            # Calculate alpha (Length Scale) from A
+            # A = alpha / (U_0 * tau)  ->  alpha = A * U_0 * tau
+            alpha = float(A * U_0 * tau)
 
         return cls(
             d_particle=d_particle,
