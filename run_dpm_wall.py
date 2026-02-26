@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 from src.parcel import ParcelState, DPMConfig
 from src.grid import DPMGrid
-from src.flow import flow_wall_stagnation
+from src.flow import flow_wall_stagnation, temp_wall_gradient
 from src.boundary import BoundaryManager
 from src.config import ForceConfig
 from src.dpm_solver import run_dpm_simulation
@@ -92,6 +92,7 @@ def main():
         force_config,
         bounds,
         flow_wall_stagnation,
+        temp_wall_gradient,
         key,
         grid_resolution=(200, 200),
         grid_bounds=(x_lim, y_lim),
@@ -100,7 +101,14 @@ def main():
 
     # Visualization
     print("Plotting results...")
-    viz = DPMVisualizer(grid, config, history=history, t_eval=t_eval)
+    viz = DPMVisualizer(
+        grid,
+        config,
+        history=history,
+        t_eval=t_eval,
+        flow_func=flow_wall_stagnation,
+        temp_func=temp_wall_gradient,
+    )
     viz.plot_fields("dpm_wall_thermal.png")
     viz.plot_trajectories("dpm_trajectories.png")
     print("Done.")

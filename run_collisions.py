@@ -5,7 +5,7 @@ from jax import random
 import numpy as np
 from src.config import SimConfig, ForceConfig
 from src.state import ParticleState
-from src.flow import flow_cylinder_potential
+from src.flow import flow_cylinder_potential, temp_constant
 from src.boundary import BoundaryManager
 from src.solver import run_simulation_euler
 
@@ -86,6 +86,7 @@ def main():
         force_config,
         bounds,
         flow_cylinder_potential,
+        temp_constant,
         sim_key,
     )
 
@@ -94,7 +95,7 @@ def main():
     from src.jax_visualizer import JAXVisualizer
 
     flat_bounds = (x_lim[0], x_lim[1], y_lim[0], y_lim[1])
-    viz = JAXVisualizer(config, history, t_eval, flow_cylinder_potential)
+    viz = JAXVisualizer(config, history, t_eval, flow_cylinder_potential, temp_constant)
     viz.generate_video(
         "collision_thin_streams.mp4",
         bounds=flat_bounds,

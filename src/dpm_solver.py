@@ -9,7 +9,7 @@ from src.grid import DPMGrid
 from src.solver import run_simulation_euler
 from src.config import ForceConfig
 from src.boundary import BoundaryManager
-from src.flow import FlowFunc
+from src.flow import FlowFunc, TempFunc
 
 
 def run_dpm_simulation(
@@ -19,6 +19,7 @@ def run_dpm_simulation(
     force_config: ForceConfig,
     boundary_manager: BoundaryManager,
     flow_func: FlowFunc,
+    temp_func: TempFunc,
     master_rng_key: jax.Array,
     grid_resolution: Tuple[int, int] = (100, 100),
     grid_bounds: Tuple[Tuple[float, float], Tuple[float, float]] = None,
@@ -63,6 +64,7 @@ def run_dpm_simulation(
         force_config,
         boundary_manager,
         flow_func,
+        temp_func,
         master_rng_key,
     )
 

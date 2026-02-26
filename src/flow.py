@@ -3,6 +3,7 @@ from src.config import SimConfig
 from typing import Callable
 
 FlowFunc = Callable[[jnp.ndarray, SimConfig], jnp.ndarray]
+TempFunc = Callable[[jnp.ndarray, SimConfig], float]
 
 
 def flow_cellular(position: jnp.ndarray, config: SimConfig) -> jnp.ndarray:
@@ -78,4 +79,40 @@ FLOW_REGISTRY = {
     "cellular": flow_cellular,
     "cylinder": flow_cylinder_potential,
     "wall": flow_wall_stagnation,
+}
+
+
+def temp_constant(position: jnp.ndarray, config: SimConfig) -> float:
+    r"""Computes a constant fluid temperature.
+
+    Args:
+        position (jnp.ndarray): Position vector :math:`(x, y)`. Units: [m].
+        config (SimConfig): Simulation configuration.
+
+    Returns:
+        float: Constant fluid temperature. Units: [K].
+    """
+    return config.T_room_ref
+
+
+def temp_wall_gradient(position: jnp.ndarray, config: SimConfig) -> float:
+    r"""Calculates the fluid temperature at a specific position with a wall gradient.
+
+    Assumes a linear temperature gradient from a heated wall.
+
+    Args:
+        position (jnp.ndarray): Particle position vector. Units: [m].
+        config (SimConfig): Simulation configuration containing wall parameters.
+
+    Returns:
+        float: Fluid temperature. Units: [K].
+    """
+    dist = config.wall_x - position[0]
+    dist = jnp.maximum(dist, 0.0)
+    return config.T_wall - config.T_gradient_slope * dist
+
+
+TEMP_REGISTRY = {
+    "constant": temp_constant,
+    "wall_gradient": temp_wall_gradient,
 }

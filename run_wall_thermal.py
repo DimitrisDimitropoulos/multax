@@ -5,7 +5,7 @@ from jax import random
 import numpy as np
 from src.config import SimConfig, ForceConfig
 from src.state import ParticleState
-from src.flow import flow_wall_stagnation
+from src.flow import flow_wall_stagnation, temp_wall_gradient
 from src.boundary import BoundaryManager
 from src.solver import run_simulation_euler
 
@@ -68,7 +68,7 @@ def main():
     key = jnp.array([42, 42], dtype=jnp.uint32)
     print("Running Wall Thermal Simulation...")
     history = run_simulation_euler(
-        initial_state, t_eval, config, force_config, bounds, flow_wall_stagnation, key
+        initial_state, t_eval, config, force_config, bounds, flow_wall_stagnation, temp_wall_gradient, key
     )
 
     # Visualization
@@ -77,7 +77,7 @@ def main():
 
     # Flatten bounds for rasterizer: x_min, x_max, y_min, y_max
     flat_bounds = (x_lim[0], x_lim[1], y_lim[0], y_lim[1])
-    viz = JAXVisualizer(config, history, t_eval, flow_wall_stagnation)
+    viz = JAXVisualizer(config, history, t_eval, flow_wall_stagnation, temp_wall_gradient)
     viz.generate_video(
         "wall_thermal.mp4",
         bounds=flat_bounds,

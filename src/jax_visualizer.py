@@ -13,7 +13,7 @@ from typing import Tuple, Callable, List
 from src.state import ParticleState
 from src.config import SimConfig
 from src.rasterizer import rasterize_frame_jax
-from src.physics import get_fluid_temperature
+from src.flow import TempFunc
 
 
 class JAXVisualizer:
@@ -23,6 +23,7 @@ class JAXVisualizer:
         history: ParticleState,
         time_array: np.ndarray,
         flow_func: Callable,
+        temp_func: TempFunc = None,
     ):
         """Initializes the JAX visualizer.
 
@@ -44,6 +45,7 @@ class JAXVisualizer:
         self.mass_history = jax.device_put(history.mass)
         self.time = time_array
         self.flow_func = flow_func
+        self.temp_func = temp_func
 
     def _generate_background(
         self, width: int, height: int, bounds: Tuple[float, float, float, float]
@@ -87,20 +89,18 @@ class JAXVisualizer:
         U = vel[:, 0].reshape(X.shape)
         V = vel[:, 1].reshape(Y.shape)
 
-        # Plot Temperature Field if config indicates a thermal scenario
-        # Check if T_wall is significantly different from Room Temp, implying a gradient
-        # Later make the T_wall some char temperature to make more problem agnostic
-        if abs(self.config.T_wall - self.config.T_room_ref) > 1.0:
+        # Plot Temperature Field if a temperature function is provided
+        if self.temp_func is not None:
             # Get the temperature of the carrrier with a
             # based on the continuous function of the temperature
             # grid_pos shape is (N_points, 2)
-            T_field_jax = jax.vmap(lambda p: get_fluid_temperature(p, self.config))(
+            T_field_jax = jax.vmap(lambda p: self.temp_func(p, self.config))(
                 jnp.array(grid_pos)
             )
             T_field = np.array(T_field_jax).reshape(X.shape)
 
             # Use hot or YlOrRd colormap
-            # Alpha 0.3 so streamlines are visible
+            # Alpha 0.4 so streamlines are visible
             ax.imshow(
                 T_field,
                 extent=[x_min, x_max, y_min, y_max],

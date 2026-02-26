@@ -5,7 +5,7 @@ from jax import random
 import numpy as np
 from src.config import SimConfig, ForceConfig
 from src.state import ParticleState
-from src.flow import flow_cellular
+from src.flow import flow_cellular, temp_constant
 from src.boundary import BoundaryManager
 from src.solver import run_simulation_euler
 
@@ -66,14 +66,14 @@ def main():
     print(f"Calculated Stokes Number: {stokes:.4f}")
     print("Running Cellular Flow Simulation...")
     history = run_simulation_euler(
-        initial_state, t_eval, config, force_config, bounds, flow_cellular, key
+        initial_state, t_eval, config, force_config, bounds, flow_cellular, temp_constant, key
     )
 
     print("Generating Video (JAX Rasterizer)...")
     from src.jax_visualizer import JAXVisualizer
 
     flat_bounds = (0.0, L, 0.0, L)
-    viz = JAXVisualizer(config, history, t_eval, flow_cellular)
+    viz = JAXVisualizer(config, history, t_eval, flow_cellular, temp_constant)
     viz.generate_video(
         "cellular_flow.mp4",
         bounds=flat_bounds,

@@ -5,7 +5,7 @@ from jax import random
 import numpy as np
 from src.config import SimConfig, ForceConfig
 from src.state import ParticleState
-from src.flow import flow_cylinder_potential
+from src.flow import flow_cylinder_potential, temp_constant
 from src.boundary import BoundaryManager
 from src.solver import run_simulation_euler
 
@@ -24,7 +24,7 @@ def main():
         turbulence_intensity=0.2,
     )
 
-    force_config = ForceConfig(gravity=True, undisturbed_flow=True, drag=True)
+    force_config = ForceConfig(gravity=False, undisturbed_flow=True, drag=True)
 
     # Domain & Boundaries
     x_lim = (-3.0, 3.0)
@@ -35,8 +35,8 @@ def main():
 
     # Initialization
     n_particles = 500
-    pos_x = np.full((n_particles,), -2.5)
-    pos_y = np.linspace(-0.8, 0.8, n_particles)
+    pos_x = np.full((n_particles,), -3.5)
+    pos_y = np.linspace(-0.0, 0.0, n_particles)
     pos = jnp.array(np.stack([pos_x, pos_y], axis=1))
     vel = jax.vmap(lambda p: flow_cylinder_potential(p, config))(pos)
     # Initialize Mass
@@ -57,6 +57,7 @@ def main():
         force_config,
         bounds,
         flow_cylinder_potential,
+        temp_constant,
         key,
     )
 
@@ -65,7 +66,7 @@ def main():
     from src.jax_visualizer import JAXVisualizer
 
     flat_bounds = (x_lim[0], x_lim[1], y_lim[0], y_lim[1])
-    viz = JAXVisualizer(config, history, t_eval, flow_cylinder_potential)
+    viz = JAXVisualizer(config, history, t_eval, flow_cylinder_potential, temp_constant)
     viz.generate_video(
         "cylinder_flow.mp4",
         bounds=flat_bounds,

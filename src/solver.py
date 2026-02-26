@@ -7,7 +7,7 @@ from typing import Tuple
 from src.state import ParticleState
 from src.config import SimConfig, ForceConfig
 from src.boundary import BoundaryManager
-from src.flow import FlowFunc
+from src.flow import FlowFunc, TempFunc
 from src.physics import total_force, calculate_rates
 from src.collisions import resolve_collisions
 
@@ -17,6 +17,7 @@ def equations_of_motion(
     config: SimConfig,
     force_config: ForceConfig,
     flow_func: FlowFunc,
+    temp_func: TempFunc,
     rng_key: jax.Array,
 ) -> Tuple[jnp.ndarray, float, float]:
     r"""Computes the instantaneous derivatives for a single particle.
@@ -32,6 +33,7 @@ def equations_of_motion(
         config (SimConfig): Simulation configuration.
         force_config (ForceConfig): Active forces configuration.
         flow_func (FlowFunc): Flow field function.
+        temp_func (TempFunc): Temperature field function.
         rng_key (jax.Array): PRNG key for stochastic processes.
 
     Returns:
@@ -57,12 +59,12 @@ def equations_of_motion(
     accel = force / inertial_mass
 
     # Thermo eqs
-    dm_dt, dT_dt = calculate_rates(state, u_eff, config, current_d)
+    dm_dt, dT_dt = calculate_rates(state, u_eff, config, current_d, temp_func)
 
     return accel, dT_dt, dm_dt
 
 
-@partial(jax.jit, static_argnums=(3, 4, 5))
+@partial(jax.jit, static_argnums=(3, 4, 5, 6))
 def run_simulation_euler(
     initial_state: ParticleState,
     t_eval: jnp.ndarray,
@@ -70,6 +72,7 @@ def run_simulation_euler(
     force_config: ForceConfig,
     boundary_manager: BoundaryManager,
     flow_func: FlowFunc,
+    temp_func: TempFunc,
     master_rng_key: jax.Array,
 ) -> ParticleState:
     r"""Runs the full simulation using a Semi-Implicit Euler integrator.
@@ -84,6 +87,7 @@ def run_simulation_euler(
         force_config (ForceConfig): Active forces configuration.
         boundary_manager (BoundaryManager): Boundary condition logic.
         flow_func (FlowFunc): Flow field function.
+        temp_func (TempFunc): Temperature field function.
         master_rng_key (jax.Array): Master PRNG key.
 
     Returns:
@@ -110,7 +114,7 @@ def run_simulation_euler(
         # State is a Pytree of arrays (N, ...).
 
         def single_particle_deriv(s, k):
-            return equations_of_motion(s, config, force_config, flow_func, k)
+            return equations_of_motion(s, config, force_config, flow_func, temp_func, k)
 
         # vmap over state (0) and keys (0). config/force_config/flow_func are captured constants.
         accel, dT_dt, dm_dt = jax.vmap(single_particle_deriv, in_axes=(0, 0))(

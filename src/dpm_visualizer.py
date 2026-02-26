@@ -1,9 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from src.grid import DPMGrid
-from src.flow import flow_wall_stagnation
+from src.flow import FlowFunc, TempFunc
 from src.config import SimConfig
-from src.physics import get_fluid_temperature
 import matplotlib.colors as colors
 from matplotlib.collections import LineCollection
 import jax.numpy as jnp
@@ -11,12 +10,20 @@ import jax.numpy as jnp
 
 class DPMVisualizer:
     def __init__(
-        self, grid: DPMGrid, config: SimConfig = None, history=None, t_eval=None
+        self,
+        grid: DPMGrid,
+        config: SimConfig = None,
+        history=None,
+        t_eval=None,
+        flow_func: FlowFunc = None,
+        temp_func: TempFunc = None,
     ):
         self.grid = grid
         self.config = config
         self.history = history  # history is ParticleState (T, N)
         self.t_eval = t_eval
+        self.flow_func = flow_func
+        self.temp_func = temp_func
 
     def plot_fields(self, filename: str = "dpm_stats.png"):
         """
@@ -50,11 +57,11 @@ class DPMVisualizer:
         y_s = np.linspace(self.grid.y_min, self.grid.y_max, ny_stream)
         X_s, Y_s = np.meshgrid(x_s, y_s)
 
-        if self.config:
+        if self.config and self.flow_func:
             import jax
 
             pts = np.stack([X_s.ravel(), Y_s.ravel()], axis=1)
-            vmap_flow = jax.vmap(lambda p: flow_wall_stagnation(p, self.config))
+            vmap_flow = jax.vmap(lambda p: self.flow_func(p, self.config))
             vel_vecs = vmap_flow(pts)
             U_s = vel_vecs[:, 0].reshape(X_s.shape)
             V_s = vel_vecs[:, 1].reshape(X_s.shape)
@@ -173,14 +180,21 @@ class DPMVisualizer:
         import jax
 
         # Carrier Temp
-        vmap_temp = jax.vmap(lambda p: get_fluid_temperature(p, self.config))
-        carrier_T = vmap_temp(pts).reshape(X.shape)
+        if self.temp_func:
+            vmap_temp = jax.vmap(lambda p: self.temp_func(p, self.config))
+            carrier_T = vmap_temp(pts).reshape(X.shape)
+        else:
+            carrier_T = np.zeros(X.shape)
 
         # Carrier Flow
-        vmap_flow = jax.vmap(lambda p: flow_wall_stagnation(p, self.config))
-        vel_vecs = vmap_flow(pts)
-        U = vel_vecs[:, 0].reshape(X.shape)
-        V = vel_vecs[:, 1].reshape(X.shape)
+        if self.flow_func:
+            vmap_flow = jax.vmap(lambda p: self.flow_func(p, self.config))
+            vel_vecs = vmap_flow(pts)
+            U = vel_vecs[:, 0].reshape(X.shape)
+            V = vel_vecs[:, 1].reshape(X.shape)
+        else:
+            U = np.zeros(X.shape)
+            V = np.zeros(X.shape)
 
         # Extract Trajectory Data
         # history: ParticleState (T, N)

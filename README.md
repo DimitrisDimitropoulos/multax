@@ -65,6 +65,8 @@ https://github.com/user-attachments/assets/12d82512-b39f-4200-8b61-903d276802b8
 
 - `run_collisions.py`: Demonstrates the efficiency and accuracy of the collision engine.
 
+- `run_custom_fields.py`: Showcases how to define arbitrary carrier velocity and temperature fields for specialized scenarios.
+
 
 
 

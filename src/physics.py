@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from jax import random
 from src.state import ParticleState
 from src.config import SimConfig, ForceConfig
-from src.flow import FlowFunc
+from src.flow import FlowFunc, TempFunc
 from typing import Tuple
 
 
@@ -58,26 +58,6 @@ def get_turbulent_velocity(
     sigma = jnp.sqrt((2.0 / 3.0) * k_val)
     noise = random.normal(key, shape=mean_vel.shape) * sigma
     return mean_vel + noise
-
-
-def get_fluid_temperature(position: jnp.ndarray, config: SimConfig) -> float:
-    r"""Calculates the fluid temperature at a specific position.
-
-    Assumes a linear temperature gradient from a heated wall.
-
-    .. math::
-        T_f(\mathbf{x}) = T_{wall} - \nabla T \cdot \max(0, x_{wall} - x)
-
-    Args:
-        position (jnp.ndarray): Particle position vector. Units: [m].
-        config (SimConfig): Simulation configuration containing wall parameters.
-
-    Returns:
-        float: Fluid temperature. Units: [K].
-    """
-    dist = config.wall_x - position[0]
-    dist = jnp.maximum(dist, 0.0)
-    return config.T_wall - config.T_gradient_slope * dist
 
 
 def gravity_force(config: SimConfig, current_mass: float) -> jnp.ndarray:
@@ -182,7 +162,11 @@ def total_force(
 
 
 def calculate_rates(
-    state: ParticleState, u_effective: jnp.ndarray, config: SimConfig, current_d: float
+    state: ParticleState,
+    u_effective: jnp.ndarray,
+    config: SimConfig,
+    current_d: float,
+    temp_func: TempFunc,
 ) -> Tuple[float, float]:
     r"""Calculates the rate of change of mass (evaporation) and temperature (heat transfer).
 
@@ -197,6 +181,7 @@ def calculate_rates(
         u_effective (jnp.ndarray): Effective fluid velocity. Units: [m/s].
         config (SimConfig): Simulation configuration.
         current_d (float): Current particle diameter. Units: [m].
+        temp_func (TempFunc): Function returning the fluid temperature field.
 
     Returns:
         Tuple[float, float]: A tuple containing:
@@ -207,7 +192,7 @@ def calculate_rates(
     # or uninitialized to avoid numerical instability
     is_active = state.temperature > 1.0
 
-    T_fluid = get_fluid_temperature(state.position, config)
+    T_fluid = temp_func(state.position, config)
     T_part = state.temperature
     rel_vel = state.velocity - u_effective
     rel_speed = jnp.linalg.norm(rel_vel)
