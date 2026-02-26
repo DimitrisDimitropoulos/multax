@@ -26,7 +26,7 @@ def custom_temp(position: jnp.ndarray, config: SimConfig) -> float:
 
 def main():
     config = SimConfig(
-        d_particle=100e-6,
+        d_particle=150e-6,
         rho_particle=1000.0,
         rho_fluid=1.225,
         mu_fluid=1.81e-5,
@@ -38,9 +38,9 @@ def main():
         k_fluid=0.026,
         T_room_ref=300.0,
         T_wall=350.0,
-        RH_room=0.5,
+        RH_room=0.65,
         enable_turbulence=True,
-        turbulence_intensity=0.05,
+        turbulence_intensity=0.5,
     )
 
     force_config = ForceConfig(gravity=False, undisturbed_flow=True, drag=True)
@@ -51,7 +51,7 @@ def main():
     bounds = BoundaryManager(x_bounds=x_lim, y_bounds=y_lim, periodic=True)
 
     # Initialization
-    n_particles = 1000
+    n_particles = 1500
     pos_x = np.random.uniform(x_lim[0], x_lim[0] + 0.5, n_particles)
     pos_y = np.random.uniform(y_lim[0], y_lim[1], n_particles)
     pos = jnp.array(np.stack([pos_x, pos_y], axis=1))
@@ -69,7 +69,7 @@ def main():
     )
 
     # Simulation
-    t_end = 4.0
+    t_end = 6.0
     dt = 0.0005
     t_eval = jnp.array(np.arange(0.0, t_end, dt))
     key = jnp.array([777, 888], dtype=jnp.uint32)
@@ -95,7 +95,7 @@ def main():
         bounds=flat_bounds,
         width=800,
         height=450,
-        fps=30,
+        fps=120,
         slow_mo_factor=1.0,
     )
     print("Done.")
