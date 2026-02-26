@@ -5,7 +5,7 @@ from functools import partial
 from typing import Tuple
 
 from src.state import ParticleState
-from src.config import SimConfig, ForceConfig
+from src.config import PhysicsConfig, ForceConfig
 from src.boundary import BoundaryManager
 from src.flow import FlowFunc, TempFunc
 from src.physics import total_force, calculate_rates
@@ -14,7 +14,7 @@ from src.collisions import resolve_collisions
 
 def equations_of_motion(
     state: ParticleState,
-    config: SimConfig,
+    config: PhysicsConfig,
     force_config: ForceConfig,
     flow_func: FlowFunc,
     temp_func: TempFunc,
@@ -30,7 +30,7 @@ def equations_of_motion(
 
     Args:
         state (ParticleState): Current state of the particle.
-        config (SimConfig): Simulation configuration.
+        config (PhysicsConfig): Simulation configuration.
         force_config (ForceConfig): Active forces configuration.
         flow_func (FlowFunc): Flow field function.
         temp_func (TempFunc): Temperature field function.
@@ -68,7 +68,7 @@ def equations_of_motion(
 def run_simulation_euler(
     initial_state: ParticleState,
     t_eval: jnp.ndarray,
-    config: SimConfig,
+    config: PhysicsConfig,
     force_config: ForceConfig,
     boundary_manager: BoundaryManager,
     flow_func: FlowFunc,
@@ -83,7 +83,7 @@ def run_simulation_euler(
     Args:
         initial_state (ParticleState): Initial state of all particles.
         t_eval (jnp.ndarray): Array of time points to evaluate. Units: [s].
-        config (SimConfig): Simulation configuration.
+        config (PhysicsConfig): Simulation configuration.
         force_config (ForceConfig): Active forces configuration.
         boundary_manager (BoundaryManager): Boundary condition logic.
         flow_func (FlowFunc): Flow field function.

@@ -2,13 +2,13 @@ import jax
 import jax.numpy as jnp
 from jax import random
 from src.state import ParticleState
-from src.config import SimConfig, ForceConfig
+from src.config import PhysicsConfig, ForceConfig
 from src.flow import FlowFunc, TempFunc
 from typing import Tuple
 
 
 def material_derivative(
-    position: jnp.ndarray, config: SimConfig, flow_func: FlowFunc
+    position: jnp.ndarray, config: PhysicsConfig, flow_func: FlowFunc
 ) -> jnp.ndarray:
     r"""Computes the material derivative of the flow velocity at a given position.
 
@@ -18,7 +18,7 @@ def material_derivative(
 
     Args:
         position (jnp.ndarray): Position vector :math:`\mathbf{x}`. Units: [m].
-        config (SimConfig): Simulation configuration.
+        config (PhysicsConfig): Simulation configuration.
         flow_func (FlowFunc): Function returning flow velocity field.
 
     Returns:
@@ -31,7 +31,7 @@ def material_derivative(
 
 
 def get_turbulent_velocity(
-    mean_vel: jnp.ndarray, key: jax.Array, config: SimConfig
+    mean_vel: jnp.ndarray, key: jax.Array, config: PhysicsConfig
 ) -> jnp.ndarray:
     r"""Calculates the effective velocity including a stochastic turbulent component.
 
@@ -46,7 +46,7 @@ def get_turbulent_velocity(
     Args:
         mean_vel (jnp.ndarray): Mean flow velocity vector. Units: [m/s].
         key (jax.Array): PRNG key for stochastic generation.
-        config (SimConfig): Simulation configuration.
+        config (PhysicsConfig): Simulation configuration.
 
     Returns:
         jnp.ndarray: Effective velocity vector. Units: [m/s].
@@ -60,14 +60,14 @@ def get_turbulent_velocity(
     return mean_vel + noise
 
 
-def gravity_force(config: SimConfig, current_mass: float) -> jnp.ndarray:
+def gravity_force(config: PhysicsConfig, current_mass: float) -> jnp.ndarray:
     r"""Calculates the gravitational force acting on the particle.
 
     .. math::
         \mathbf{F}_g = m_p \mathbf{g}
 
     Args:
-        config (SimConfig): Simulation configuration.
+        config (PhysicsConfig): Simulation configuration.
         current_mass (float): Current mass of the particle. Units: [kg].
 
     Returns:
@@ -77,7 +77,7 @@ def gravity_force(config: SimConfig, current_mass: float) -> jnp.ndarray:
 
 
 def undisturbed_flow_force(
-    state: ParticleState, config: SimConfig, flow_func: FlowFunc, current_d: float
+    state: ParticleState, config: PhysicsConfig, flow_func: FlowFunc, current_d: float
 ) -> jnp.ndarray:
     r"""Calculates the force due to the undisturbed flow (pressure gradient + buoyancy).
 
@@ -86,7 +86,7 @@ def undisturbed_flow_force(
 
     Args:
         state (ParticleState): Current state of the particle.
-        config (SimConfig): Simulation configuration.
+        config (PhysicsConfig): Simulation configuration.
         flow_func (FlowFunc): Function defining the flow field.
         current_d (float): Current particle diameter. Units: [m].
 
@@ -100,7 +100,7 @@ def undisturbed_flow_force(
 
 
 def drag_force(
-    state: ParticleState, u_effective: jnp.ndarray, config: SimConfig, current_d: float
+    state: ParticleState, u_effective: jnp.ndarray, config: PhysicsConfig, current_d: float
 ) -> jnp.ndarray:
     r"""Calculates the Stokes drag force acting on the particle.
 
@@ -110,7 +110,7 @@ def drag_force(
     Args:
         state (ParticleState): Current state of the particle.
         u_effective (jnp.ndarray): Effective fluid velocity (mean + turbulence). Units: [m/s].
-        config (SimConfig): Simulation configuration.
+        config (PhysicsConfig): Simulation configuration.
         current_d (float): Current particle diameter. Units: [m].
 
     Returns:
@@ -126,7 +126,7 @@ def drag_force(
 
 def total_force(
     state: ParticleState,
-    config: SimConfig,
+    config: PhysicsConfig,
     force_config: ForceConfig,
     flow_func: FlowFunc,
     rng_key: jax.Array,
@@ -139,7 +139,7 @@ def total_force(
 
     Args:
         state (ParticleState): Current state of the particle.
-        config (SimConfig): Simulation configuration.
+        config (PhysicsConfig): Simulation configuration.
         force_config (ForceConfig): Configuration enabling/disabling specific forces.
         flow_func (FlowFunc): Function defining the flow field.
         rng_key (jax.Array): PRNG key for turbulence.
@@ -164,7 +164,7 @@ def total_force(
 def calculate_rates(
     state: ParticleState,
     u_effective: jnp.ndarray,
-    config: SimConfig,
+    config: PhysicsConfig,
     current_d: float,
     temp_func: TempFunc,
 ) -> Tuple[float, float]:
@@ -179,7 +179,7 @@ def calculate_rates(
     Args:
         state (ParticleState): Current state of the particle.
         u_effective (jnp.ndarray): Effective fluid velocity. Units: [m/s].
-        config (SimConfig): Simulation configuration.
+        config (PhysicsConfig): Simulation configuration.
         current_d (float): Current particle diameter. Units: [m].
         temp_func (TempFunc): Function returning the fluid temperature field.
 
