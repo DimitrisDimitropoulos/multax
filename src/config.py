@@ -65,6 +65,7 @@ class PhysicsConfig:
     enable_turbulence: bool = False
     turbulence_intensity: float = 0.1
     enable_collisions: bool = False
+    collision_engine: str = "jax"  # Options: "jax", "warp"
     collision_restitution: float = 0.9
 
     def tree_flatten(self):
