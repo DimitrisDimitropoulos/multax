@@ -10,6 +10,7 @@ from src.config import SimConfig
 from src.flow import TempFunc
 from src.jax_visualizer import JAXVisualizer
 from src.warp_rasterizer import rasterize_frame_warp
+from src.ffmpeg_utils import get_ffmpeg_cmd
 
 
 class WarpVisualizer(JAXVisualizer):
@@ -58,35 +59,7 @@ class WarpVisualizer(JAXVisualizer):
         print(f"Video Generation: {total_frames} frames. Target: {output_path}")
 
         # Step: Initialize FFMPEG pipeline
-        ffmpeg_command = [
-            "ffmpeg",
-            "-y",
-            "-v",
-            "error",
-            "-f",
-            "rawvideo",
-            "-vcodec",
-            "rawvideo",
-            "-s",
-            f"{width}x{height}",
-            "-pix_fmt",
-            "rgb24",
-            "-r",
-            str(fps),
-            "-i",
-            "-",
-            "-c:v",
-            "libx264",
-            "-b:v",
-            "5M",
-            "-pix_fmt",
-            "yuv420p",
-            "-preset",
-            "fast",
-            "-crf",
-            "18",
-            output_path,
-        ]
+        ffmpeg_command = get_ffmpeg_cmd(width, height, fps, output_path, use_nvenc_if_available=True)
 
         process = subprocess.Popen(
             ffmpeg_command, stdin=subprocess.PIPE, stderr=None, text=False

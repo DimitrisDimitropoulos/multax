@@ -10,6 +10,7 @@ from src.solver import run_simulation_euler
 from src.config import PhysicsConfig, ForceConfig
 from src.boundary import BoundaryManager
 from src.flow import FlowFunc, TempFunc
+from src.ffmpeg_utils import get_ffmpeg_cmd
 
 
 def _calculate_chunk_size(
@@ -274,33 +275,7 @@ def generate_orchestrated_video(
 
     print(f"Video Gen: {num_video_frames} frames. Output: {output_path}")
 
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-f",
-        "rawvideo",
-        "-vcodec",
-        "rawvideo",
-        "-s",
-        f"{width}x{height}",
-        "-pix_fmt",
-        "rgb24",
-        "-r",
-        str(fps),
-        "-i",
-        "-",
-        "-c:v",
-        "libx264",
-        "-b:v",
-        "5M",
-        "-pix_fmt",
-        "yuv420p",
-        "-preset",
-        "fast",
-        "-crf",
-        "18",
-        output_path,
-    ]
+    cmd = get_ffmpeg_cmd(width, height, fps, output_path, use_nvenc_if_available=True)
 
     process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
 

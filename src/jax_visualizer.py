@@ -14,6 +14,7 @@ from src.state import ParticleState
 from src.config import SimConfig
 from src.rasterizer import rasterize_frame_jax
 from src.flow import TempFunc
+from src.ffmpeg_utils import get_ffmpeg_cmd
 
 
 class JAXVisualizer:
@@ -196,33 +197,7 @@ class JAXVisualizer:
         sim_indices = np.linspace(0, len(self.time) - 1, num_video_frames).astype(int)
         print(f"Video Gen: {num_video_frames} frames. Output: {output_path}")
 
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "rawvideo",
-            "-vcodec",
-            "rawvideo",
-            "-s",
-            f"{width}x{height}",
-            "-pix_fmt",
-            "rgb24",
-            "-r",
-            str(fps),
-            "-i",
-            "-",
-            "-c:v",
-            "libx264",  # Use CPU for guaranteed robustness as previous attempts crashed
-            "-b:v",
-            "5M",  # Bitrate
-            "-pix_fmt",
-            "yuv420p",
-            "-preset",
-            "fast",
-            "-crf",
-            "18",
-            output_path,
-        ]
+        cmd = get_ffmpeg_cmd(width, height, fps, output_path, use_nvenc_if_available=True)
 
         process = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL
