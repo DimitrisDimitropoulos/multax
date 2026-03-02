@@ -10,9 +10,6 @@ from src.boundary import BoundaryManager
 from src.flow import FlowFunc, TempFunc
 from src.physics import total_force, calculate_rates
 from src.collisions import resolve_collisions as jax_resolve_collisions
-from src.warp_collisions import resolve_collisions as warp_resolve_collisions
-
-from src.warp_ccd_lcp import resolve_collisions_ccd_lcp as warp_ccd_resolve_collisions
 
 
 def equations_of_motion(
@@ -155,8 +152,16 @@ def run_simulation_euler(
 
         # Resolve Particle-Particle Collisions
         if config.collision_engine == "warp":
+            from src.warp_collisions import (
+                resolve_collisions as warp_resolve_collisions,
+            )
+
             temp_state = warp_resolve_collisions(temp_state, config)
         elif config.collision_engine == "warp_ccd":
+            from src.warp_ccd_lcp import (
+                resolve_collisions_ccd_lcp as warp_ccd_resolve_collisions,
+            )
+
             temp_state = warp_ccd_resolve_collisions(temp_state, config, dt)
         else:
             temp_state = jax_resolve_collisions(temp_state, config)
