@@ -86,7 +86,7 @@ def resolve_collisions(state: ParticleState, config: SimConfig) -> ParticleState
 
         # Accumulate changes
         # tuple: (velocity_delta, position_delta)
-        accum_init = (jnp.zeros(2), jnp.zeros(2))
+        accum_init = (jnp.zeros(config.dim), jnp.zeros(config.dim))
 
         def check_neighbor(j_offset, accum):
             acc_dv, acc_dx = accum

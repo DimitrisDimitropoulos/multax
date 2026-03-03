@@ -65,15 +65,15 @@ def _save_chunk_to_h5(
         # Maxshape=(None, N, ...) allows unlimited appending along 0-th dimension
         file.create_dataset(
             "position",
-            shape=(0, n_particles, 2),
-            maxshape=(None, n_particles, 2),
+            shape=(0, n_particles, chunk_history.position.shape[2]),
+            maxshape=(None, n_particles, chunk_history.position.shape[2]),
             dtype=np.float32,
             chunks=True,
         )
         file.create_dataset(
             "velocity",
-            shape=(0, n_particles, 2),
-            maxshape=(None, n_particles, 2),
+            shape=(0, n_particles, chunk_history.velocity.shape[2]),
+            maxshape=(None, n_particles, chunk_history.velocity.shape[2]),
             dtype=np.float32,
             chunks=True,
         )

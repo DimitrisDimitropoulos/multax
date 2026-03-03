@@ -43,6 +43,9 @@ class PhysicsConfig:
     # Gravity
     g: float
 
+    # Dimensions
+    dim: int = 2
+
     # Thermal/Mass Transfer
     k_fluid: float = 0.026
     cp_fluid: float = 1005.0

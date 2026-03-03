@@ -139,7 +139,8 @@ def run_simulation_euler(
         new_vel = state.velocity + accel * dt
         new_pos = state.position + new_vel * dt
         new_temp = state.temperature + dT_dt * dt
-        new_mass = state.mass + dm_dt * dt
+        # Strongly prevent mass from ever going strictly negative due to timestep overshoots
+        new_mass = jnp.maximum(state.mass + dm_dt * dt, 1e-16)
 
         # Freeze position/velocity for inactive particles (keep old state or just stop updating)
         # We let them freeze in place to avoid them flying off with NaNs, if we make them zero or None

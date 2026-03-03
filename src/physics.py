@@ -53,7 +53,7 @@ def get_turbulent_velocity(
     """
     if not config.enable_turbulence:
         return mean_vel
-    u_mag = jnp.linalg.norm(mean_vel)
+    u_mag = jnp.linalg.norm(mean_vel, axis=-1, keepdims=True)
     k_val = (3 / 2) * (config.turbulence_intensity * u_mag) ** (2)
     sigma = jnp.sqrt((2.0 / 3.0) * k_val)
     noise = random.normal(key, shape=mean_vel.shape) * sigma
@@ -73,7 +73,11 @@ def gravity_force(config: PhysicsConfig, current_mass: float) -> jnp.ndarray:
     Returns:
         jnp.ndarray: Gravitational force vector. Units: [N].
     """
-    return jnp.array([0.0, current_mass * config.g])
+    import numpy as np
+
+    vec = np.zeros(config.dim)
+    vec[-1] = config.g  # Gravity is always in the last dimension (Y for 2D, Z for 3D)
+    return jnp.array(vec) * current_mass
 
 
 def undisturbed_flow_force(
@@ -93,14 +97,22 @@ def undisturbed_flow_force(
     Returns:
         jnp.ndarray: Undisturbed flow force vector. Units: [N].
     """
+    import numpy as np
+
     m_fluid_curr = (jnp.pi * current_d**3 / 6) * config.rho_fluid
     fluid_accel = material_derivative(state.position, config, flow_func)
-    buoyancy = -m_fluid_curr * jnp.array([0.0, config.g])
+
+    vec = np.zeros(config.dim)
+    vec[-1] = config.g
+    buoyancy = -m_fluid_curr * jnp.array(vec)
     return m_fluid_curr * fluid_accel + buoyancy
 
 
 def drag_force(
-    state: ParticleState, u_effective: jnp.ndarray, config: PhysicsConfig, current_d: float
+    state: ParticleState,
+    u_effective: jnp.ndarray,
+    config: PhysicsConfig,
+    current_d: float,
 ) -> jnp.ndarray:
     r"""Calculates the Stokes drag force acting on the particle.
 
@@ -151,7 +163,7 @@ def total_force(
     """
     u_mean = flow_func(state.position, config)
     u_eff = get_turbulent_velocity(u_mean, rng_key, config)
-    tf = jnp.zeros(2)
+    tf = jnp.zeros(config.dim)
     if force_config.gravity:
         tf += gravity_force(config, current_mass)
     if force_config.undisturbed_flow:
@@ -195,7 +207,7 @@ def calculate_rates(
     T_fluid = temp_func(state.position, config)
     T_part = state.temperature
     rel_vel = state.velocity - u_effective
-    rel_speed = jnp.linalg.norm(rel_vel)
+    rel_speed = jnp.linalg.norm(rel_vel, axis=-1)
     reynolds = (config.rho_fluid * rel_speed * current_d) / config.mu_fluid
     prandtl = config.get_prandtl_number()
 
@@ -216,13 +228,14 @@ def calculate_rates(
     # avoid NaNs in the branch
     # Assume below -73C is not relevant for our scenario and can cause numerical issues
     T_safe = jnp.maximum(T_part, 200.0)
-    T_cel = T_safe - 273.15
+    # Clip to 100C for the Magnus formula to prevent unbounded vapor pressures
+    T_cel = jnp.clip(T_safe - 273.15, -50.0, 100.0)
     p_sat = 610.78 * jnp.exp((17.27 * T_cel) / (T_cel + 237.3))
 
     # Mass Fraction
     omega_surf = (config.M_dispersed / config.M_continuous) * (p_sat / config.P_atm)
 
-    T_room_cel = config.T_room_ref - 273.15
+    T_room_cel = jnp.clip(config.T_room_ref - 273.15, -50.0, 100.0)
     p_sat_room = 610.78 * jnp.exp((17.27 * T_room_cel) / (T_room_cel + 237.3))
     omega_inf = (
         config.RH_room

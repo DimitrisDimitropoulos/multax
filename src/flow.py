@@ -75,6 +75,28 @@ def flow_wall_stagnation(position: jnp.ndarray, config: SimConfig) -> jnp.ndarra
     return jnp.array([ux, vy])
 
 
+def flow_3d_vortex(position: jnp.ndarray, config: SimConfig) -> jnp.ndarray:
+    r"""Computes velocity for a 3D rotational vortex field.
+
+    .. math::
+        u_x = -U_0 \sin(y/\alpha)
+        u_y = U_0 \cos(x/\alpha)
+        u_z = U_0 \sin(z/\alpha)
+
+    Args:
+        position (jnp.ndarray): Position vector :math:`(x, y, z)`. Units: [m].
+        config (SimConfig): Simulation configuration.
+
+    Returns:
+        jnp.ndarray: Velocity vector :math:`(u_x, u_y, u_z)`. Units: [m/s].
+    """
+    x, y, z = position[0], position[1], position[2] if position.shape[0] > 2 else 0.0
+    ux = -config.U_0 * jnp.sin(y / config.alpha)
+    uy = config.U_0 * jnp.cos(x / config.alpha)
+    uz = config.U_0 * jnp.sin(z / config.alpha) if position.shape[0] > 2 else 0.0
+    return jnp.array([ux, uy, uz])
+
+
 FLOW_REGISTRY = {
     "cellular": flow_cellular,
     "cylinder": flow_cylinder_potential,

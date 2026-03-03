@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from dataclasses import dataclass
 from src.state import ParticleState
 from src.config import SimConfig
-from typing import Tuple
+from typing import Tuple, Optional
 
 
 @jax.tree_util.register_pytree_node_class
@@ -23,6 +23,7 @@ class BoundaryManager:
 
     x_bounds: Tuple[float, float]
     y_bounds: Tuple[float, float]
+    z_bounds: Optional[Tuple[float, float]] = None
     periodic: bool = False
     cylinder_collision: bool = False
     wall_collision: bool = False
@@ -76,7 +77,14 @@ class BoundaryManager:
 
             new_x = (pos[..., 0] - x_min) % width + x_min
             new_y = (pos[..., 1] - y_min) % height + y_min
-            pos = jnp.stack([new_x, new_y], axis=-1)
+
+            if config.dim == 3 and self.z_bounds is not None:
+                z_min, z_max = self.z_bounds
+                depth = z_max - z_min
+                new_z = (pos[..., 2] - z_min) % depth + z_min
+                pos = jnp.stack([new_x, new_y, new_z], axis=-1)
+            else:
+                pos = jnp.stack([new_x, new_y], axis=-1)
 
         # Elastic Collision with Cylinder
         if self.cylinder_collision:
@@ -110,10 +118,16 @@ class BoundaryManager:
             is_collision = penetration > 0
             # Reflect Velocity (Elastic X reflection)
             vel_x_new = -vel[..., 0]
-            vel_new = jnp.stack([vel_x_new, vel[..., 1]], axis=-1)
-            # Project Position
-            pos_x_new = config.wall_x - current_r
-            pos_new = jnp.stack([pos_x_new, pos[..., 1]], axis=-1)
+
+            if config.dim == 3:
+                vel_new = jnp.stack([vel_x_new, vel[..., 1], vel[..., 2]], axis=-1)
+                pos_x_new = config.wall_x - current_r
+                pos_new = jnp.stack([pos_x_new, pos[..., 1], pos[..., 2]], axis=-1)
+            else:
+                vel_new = jnp.stack([vel_x_new, vel[..., 1]], axis=-1)
+                pos_x_new = config.wall_x - current_r
+                pos_new = jnp.stack([pos_x_new, pos[..., 1]], axis=-1)
+
             mask = is_collision[..., None]
             pos = jnp.where(mask, pos_new, pos)
             vel = jnp.where(mask, vel_new, vel)

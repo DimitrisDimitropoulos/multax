@@ -5,11 +5,12 @@ from typing import Tuple
 
 from src.state import ParticleState
 from src.parcel import ParcelState, DPMConfig
-from src.grid import DPMGrid
+from src.grid import DPMGrid, DPMGrid3D
 from src.solver import run_simulation_euler
 from src.config import ForceConfig
 from src.boundary import BoundaryManager
 from src.flow import FlowFunc, TempFunc
+from typing import Tuple, Union
 
 
 def run_dpm_simulation(
@@ -21,33 +22,33 @@ def run_dpm_simulation(
     flow_func: FlowFunc,
     temp_func: TempFunc,
     master_rng_key: jax.Array,
-    grid_resolution: Tuple[int, int] = (100, 100),
-    grid_bounds: Tuple[Tuple[float, float], Tuple[float, float]] = None,
-) -> Tuple[ParticleState, DPMGrid]:
-    """
-    Runs a steady-state Discrete Parcel Method simulation.
+    grid_resolution: Tuple[int, ...] = (100, 100),
+    grid_bounds: Tuple[Tuple[float, float], ...] = None,
+) -> Tuple[ParticleState, Union[DPMGrid, DPMGrid3D]]:
+    """Runs a steady-state Discrete Parcel Method simulation.
 
-    1. Evolves the parcel trajectories using the unsteady solver.
-    2. Accumulates statistics onto an Eulerian grid based on parcel history.
+    Evolves the parcel trajectories using the unsteady solver, and subsequently
+    accumulates statistics onto an Eulerian grid based on parcel history.
 
     Args:
         initial_parcels: Initial state of the parcels (ParcelState).
         t_eval: Time evaluation points.
         config: DPM Configuration.
-        ...
+        force_config: Force configuration.
+        boundary_manager: Manager for domain boundaries.
+        flow_func: Background flow definition.
+        temp_func: Background temperature definition.
+        master_rng_key: PRNG key for random number generation.
+        grid_resolution: Tuple of (nx, ny) or (nx, ny, nz).
+        grid_bounds: Tuple of bounds like ((xmin, xmax), (ymin, ymax)).
 
     Returns:
-        history: The trajectory history (ParticleState).
-        grid: The populated DPMGrid with statistics.
+        A tuple containing:
+            - history (ParticleState): The trajectory history.
+            - grid (Union[DPMGrid, DPMGrid3D]): The populated DPMGrid with statistics.
     """
 
     # Run Trajectory Simulation
-    # Note: run_simulation_euler returns ParticleState history.
-    # It downgrades ParcelState to ParticleState in the loop, which is fine
-    # because flow_rate is constant.
-    # NOTE: We must explicitly downcast the input to ParticleState so that
-    # lax.scan's input and output carry types match (ParticleState -> ParticleState).
-
     initial_base_state = ParticleState(
         position=initial_parcels.position,
         velocity=initial_parcels.velocity,
@@ -70,16 +71,23 @@ def run_dpm_simulation(
 
     # Grid
     if grid_bounds is None:
-        # Auto-detect bounds from boundary manager if possible, or config
-        # Default to Config Alpha or provided bounds
-        L = config.alpha * 10  # heuristic fallback
+        L = config.alpha * 10
         x_b = boundary_manager.x_bounds if boundary_manager.x_bounds else (0.0, L)
         y_b = boundary_manager.y_bounds if boundary_manager.y_bounds else (0.0, L)
-    else:
-        x_b, y_b = grid_bounds
+        if len(grid_resolution) == 3:
+            z_b = boundary_manager.z_bounds if boundary_manager.z_bounds else (0.0, L)
+            grid_bounds = (x_b, y_b, z_b)
+        else:
+            grid_bounds = (x_b, y_b)
 
-    nx, ny = grid_resolution
-    initial_grid = DPMGrid.create(x_b, y_b, nx, ny)
+    if len(grid_resolution) == 3:
+        nx, ny, nz = grid_resolution
+        x_b, y_b, z_b = grid_bounds
+        initial_grid = DPMGrid3D.create(x_b, y_b, z_b, nx, ny, nz)
+    else:
+        nx, ny = grid_resolution
+        x_b, y_b = grid_bounds
+        initial_grid = DPMGrid.create(x_b, y_b, nx, ny)
 
     # Accumulate Statistics
     dt = t_eval[1] - t_eval[0]
