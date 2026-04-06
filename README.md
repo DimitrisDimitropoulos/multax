@@ -52,13 +52,17 @@ https://github.com/user-attachments/assets/236a50c0-3bf2-4525-a11a-0bd5d8af1ac7
 
 
 
+
+
+
+
 - `run_cylinder.py`: Classic flow around a cylinder with particle trajectories.
 
 
 
 https://github.com/user-attachments/assets/78975051-d741-4532-b010-74a31a251327
 
-
+https://github.com/user-attachments/assets/4d3efa16-29db-4a0d-a573-7d36e72bc968
 
 - `run_wall_thermal.py`: Simulation of thermal boundary layers and their effect on particles.
 
@@ -85,11 +89,22 @@ https://github.com/user-attachments/assets/12d82512-b39f-4200-8b61-903d276802b8
 
 https://github.com/user-attachments/assets/284bee9f-30cd-4815-8059-0e6d27f701da
 
+
+
+https://github.com/user-attachments/assets/c52c586f-3a71-45a6-945c-3d78517df729
+
+
+
+
 - `run_custom_fields.py`: Showcases how to define arbitrary carrier velocity and temperature fields for specialized scenarios.
 
 
 
 https://github.com/user-attachments/assets/70d26dca-e346-4bdf-9ff6-44f5041ab016
+
+
+https://github.com/user-attachments/assets/ceae19a8-e550-4488-9bb3-5b50a90fdf8a
+
 
 
 
